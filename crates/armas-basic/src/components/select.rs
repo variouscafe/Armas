@@ -252,9 +252,13 @@ impl Select {
     pub fn show(&mut self, ui: &mut Ui) -> SelectResponse {
         let theme = ui.ctx().armas_theme();
         let avail = ui.available_width();
+        // Cap the auto width: defaulting to the full available width explodes
+        // layouts when the Select sits inside a horizontal row (the row then
+        // demands the whole parent width). 280pt keeps the shadcn auto feel
+        // without the footgun; set `.width()` explicitly to override.
         let width = self
             .width
-            .unwrap_or_else(|| if avail.is_finite() { avail } else { 200.0 });
+            .unwrap_or_else(|| if avail.is_finite() { avail.min(280.0) } else { 200.0 });
         let mut changed = false;
         let mut new_value = None;
 
