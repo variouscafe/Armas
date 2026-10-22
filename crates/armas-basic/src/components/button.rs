@@ -254,6 +254,14 @@ impl Button {
     /// When using [`show_ui`](Self::show_ui), this controls the inner width
     /// available for the closure. If not set, defaults to a square (height-based) layout.
     #[must_use]
+    /// Fixed outer width in points (content centres inside).
+    #[must_use]
+    pub const fn width(mut self, width: f32) -> Self {
+        self.min_width = Some(width);
+        self.content_width = Some(width);
+        self
+    }
+
     pub const fn content_width(mut self, width: f32) -> Self {
         self.content_width = Some(width);
         self
