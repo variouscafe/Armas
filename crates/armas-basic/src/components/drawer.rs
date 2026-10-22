@@ -179,7 +179,7 @@ impl Drawer {
         }
 
         #[allow(deprecated)]
-        let screen_rect = ctx.screen_rect();
+        let screen_rect = ctx.viewport_rect();
 
         // Get or initialize drag state
         let drag_state_id = self.id.with("drag_state");

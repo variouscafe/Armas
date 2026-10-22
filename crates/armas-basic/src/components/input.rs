@@ -422,7 +422,7 @@ impl Input {
             let mut text_edit = TextEdit::singleline(text)
                 .hint_text(&self.placeholder)
                 .desired_width(text_rect.width())
-                .frame(false)
+                .frame(egui::Frame::NONE)
                 .font(egui::TextStyle::Body)
                 .vertical_align(egui::Align::Center)
                 .interactive(!self.disabled);

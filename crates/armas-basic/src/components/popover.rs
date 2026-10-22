@@ -259,7 +259,7 @@ impl Popover {
             return self.position;
         }
 
-        let screen_rect = ctx.available_rect();
+        let screen_rect = ctx.viewport_rect();
         let space_above = anchor_rect.top() - screen_rect.top();
         let space_below = screen_rect.bottom() - anchor_rect.bottom();
         let space_left = anchor_rect.left() - screen_rect.left();

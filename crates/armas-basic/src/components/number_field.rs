@@ -377,7 +377,7 @@ impl NumberField {
 
             let text_edit = egui::TextEdit::singleline(&mut text_buf)
                 .desired_width(text_rect.width())
-                .frame(false)
+                .frame(egui::Frame::NONE)
                 .font(egui::FontId::proportional(theme.typography.base))
                 .horizontal_align(egui::Align::Center)
                 .vertical_align(egui::Align::Center)

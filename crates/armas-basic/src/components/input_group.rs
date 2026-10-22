@@ -221,7 +221,7 @@ impl InputGroup {
                     .size(theme.typography.base)
                     .color(theme.muted_foreground()),
             )
-            .frame(false);
+            .frame(egui::Frame::NONE);
 
         let te_response = child_ui.add(te);
         let changed = *text != prev_text;

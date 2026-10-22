@@ -551,7 +551,7 @@ impl Select {
             TextEdit::singleline(&mut self.search_text)
                 .hint_text("Search...")
                 .desired_width(width - 16.0)
-                .frame(true),
+                .frame(egui::Frame::NONE),
         );
 
         if search_response.changed() {

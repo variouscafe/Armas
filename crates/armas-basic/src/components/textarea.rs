@@ -261,7 +261,7 @@ impl Textarea {
                         .hint_text(&self.placeholder)
                         .desired_width(width - PADDING * 4.0)
                         .desired_rows(self.rows)
-                        .frame(false)
+                        .frame(egui::Frame::NONE)
                         .interactive(!self.disabled);
 
                     if !self.resizable {

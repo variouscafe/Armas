@@ -490,7 +490,7 @@ impl Command {
             ui.centered_and_justified(|ui| {
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut self.search)
-                        .frame(false)
+                        .frame(egui::Frame::NONE)
                         .hint_text(&self.placeholder)
                         .font(egui::FontId::proportional(theme.typography.base))
                         .vertical_align(egui::Align::Center),

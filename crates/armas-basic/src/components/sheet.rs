@@ -193,7 +193,7 @@ impl Sheet {
         }
 
         #[allow(deprecated)]
-        let screen_rect = ctx.screen_rect(); // Full viewport for overlay
+        let screen_rect = ctx.viewport_rect(); // Full viewport for overlay
 
         // Calculate sheet dimensions
         let is_horizontal = matches!(self.side, SheetSide::Left | SheetSide::Right);
