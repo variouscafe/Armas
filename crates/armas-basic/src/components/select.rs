@@ -256,9 +256,13 @@ impl Select {
         // layouts when the Select sits inside a horizontal row (the row then
         // demands the whole parent width). 280pt keeps the shadcn auto feel
         // without the footgun; set `.width()` explicitly to override.
-        let width = self
-            .width
-            .unwrap_or_else(|| if avail.is_finite() { avail.min(280.0) } else { 200.0 });
+        let width = self.width.unwrap_or_else(|| {
+            if avail.is_finite() {
+                avail.min(280.0)
+            } else {
+                200.0
+            }
+        });
         let mut changed = false;
         let mut new_value = None;
 
