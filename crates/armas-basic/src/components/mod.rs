@@ -115,11 +115,13 @@ pub(crate) const fn sanitize_width(raw: f32, default: f32) -> f32 {
     }
 }
 
-/// [`sanitize_width`] for explicit-width knobs: garbage counts as unset.
-pub(crate) const fn sanitize_opt_width(raw: Option<f32>) -> Option<f32> {
-    match raw {
-        Some(w) if w.is_finite() && w > 0.0 => Some(w),
-        _ => None,
+/// [`sanitize_width`] for explicit-width knobs, classifying a single raw
+/// value: finite positive → set; garbage counts as unset.
+pub(crate) const fn sanitize_opt_width(raw: f32) -> Option<f32> {
+    if raw.is_finite() && raw > 0.0 {
+        Some(raw)
+    } else {
+        None
     }
 }
 
@@ -130,17 +132,14 @@ mod sanitize_tests {
     #[test]
     fn finite_positive_passes_through() {
         assert_eq!(sanitize_width(150.0, 280.0), 150.0);
-        assert_eq!(sanitize_opt_width(Some(150.0)), Some(150.0));
+        assert_eq!(sanitize_opt_width(150.0), Some(150.0));
     }
 
     #[test]
     fn garbage_falls_back() {
         for garbage in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -5.0] {
             assert_eq!(sanitize_width(garbage, 280.0), 280.0);
+            assert_eq!(sanitize_opt_width(garbage), None);
         }
-        assert_eq!(sanitize_opt_width(Some(f32::NAN)), None);
-        assert_eq!(sanitize_opt_width(Some(f32::INFINITY)), None);
-        assert_eq!(sanitize_opt_width(Some(0.0)), None);
-        assert_eq!(sanitize_opt_width(None), None);
     }
 }

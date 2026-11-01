@@ -205,7 +205,7 @@ impl Select {
     /// as unset and the auto width applies.
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = sanitize_opt_width(Some(width));
+        self.width = sanitize_opt_width(width);
         self
     }
 

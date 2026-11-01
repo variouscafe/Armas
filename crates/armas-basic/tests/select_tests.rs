@@ -393,8 +393,6 @@ fn test_select_nan_cap_falls_back_to_default() {
     );
 }
 
-/// `f32::INFINITY` keeps meaning "no cap": the trigger tracks the full
-/// available width
 /// A large finite cap (`f32::MAX`) means "no cap": the trigger tracks the
 /// full available width. ±∞ is garbage and falls back to the default —
 /// infinite knobs poison finite arithmetic at use sites.

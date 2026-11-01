@@ -181,7 +181,7 @@ impl Popover {
     /// unset and the auto width applies)
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = sanitize_opt_width(Some(width));
+        self.width = sanitize_opt_width(width);
         self
     }
 
@@ -226,7 +226,8 @@ impl Popover {
 
         // Calculate position
         let position = self.determine_position(ctx, anchor_rect);
-        let popover_pos = self.calculate_popover_position(anchor_rect, position);
+        let popover_pos =
+            self.calculate_popover_position(anchor_rect, position, ctx.viewport_rect().width());
 
         // Get styling
         let (bg_color, border_color) = self.get_colors(theme);
@@ -284,11 +285,21 @@ impl Popover {
         }
     }
 
-    fn calculate_popover_position(&self, anchor_rect: Rect, position: PopoverPosition) -> Pos2 {
+    fn calculate_popover_position(
+        &self,
+        anchor_rect: Rect,
+        position: PopoverPosition,
+        screen_width: f32,
+    ) -> Pos2 {
         let spacing = self.offset.length();
-        // Knobs are sanitized at the builder boundary, so both fields are
-        // always finite positives — safe for position arithmetic.
-        let estimated_width = self.width.unwrap_or(self.max_width);
+        // The knobs are finite positives, but that alone doesn't make them
+        // safe for position arithmetic: a "no cap" f32::MAX would put the
+        // anchor ~1e38 points offscreen. This is only the initial Area
+        // guess — the real layout follows — so clamp it to the screen.
+        let estimated_width = self
+            .width
+            .unwrap_or(self.max_width)
+            .min(screen_width.max(1.0));
 
         match position {
             PopoverPosition::Top => pos2(
@@ -462,5 +473,27 @@ mod width_knob_tests {
         assert!(Popover::new("t").width(f32::INFINITY).width.is_none());
         assert!(Popover::new("t").width(0.0).width.is_none());
         assert_eq!(Popover::new("t").width(320.0).width, Some(320.0));
+    }
+}
+
+#[cfg(test)]
+mod position_estimate_tests {
+    use super::*;
+
+    /// A "no cap" `f32::MAX` must not push the anchor ~1e38 offscreen: the
+    /// estimate is clamped to the screen width.
+    #[test]
+    fn no_cap_width_cannot_push_the_anchor_offscreen() {
+        let anchor = Rect::from_min_max(pos2(480.0, 290.0), pos2(520.0, 310.0));
+        let popover = Popover::new("t").max_width(f32::MAX);
+        let pos = popover.calculate_popover_position(anchor, PopoverPosition::Bottom, 1000.0);
+        assert_eq!(pos.x, 0.0, "center 500 - min(MAX, 1000)/2 = 0");
+        assert!(pos.y.is_finite());
+
+        // Left subtracts the full estimate: 480 - 1000 - 8 is genuinely
+        // negative, but a clamped screen-sized estimate — not ~-3.4e38.
+        let left = popover.calculate_popover_position(anchor, PopoverPosition::Left, 1000.0);
+        let spacing = popover.offset.length();
+        assert_eq!(left.x, 480.0 - 1000.0 - spacing);
     }
 }

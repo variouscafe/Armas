@@ -164,8 +164,13 @@ impl Tooltip {
         // Determine position
         let target_rect = target_response.rect;
         let position = self.determine_position(ui, target_rect, tooltip_size, arrow_offset);
-        let tooltip_rect =
-            self.calculate_tooltip_rect(target_rect, tooltip_size, arrow_offset, position);
+        let tooltip_rect = self.calculate_tooltip_rect(
+            target_rect,
+            tooltip_size,
+            arrow_offset,
+            position,
+            ui.ctx().viewport_rect(),
+        );
 
         // Draw tooltip as an overlay (above everything else)
         let layer_id = egui::LayerId::new(
@@ -233,6 +238,7 @@ impl Tooltip {
         tooltip_size: Vec2,
         arrow_offset: f32,
         position: TooltipPosition,
+        screen: Rect,
     ) -> Rect {
         let target_center_x = target_rect.center().x;
         let target_center_y = target_rect.center().y;
@@ -255,6 +261,16 @@ impl Tooltip {
                 target_center_y - tooltip_size.y / 2.0,
             ),
         };
+
+        // Keep the tooltip on screen: a no-wrap galley can be wider than
+        // the viewport, which would push most of it offscreen. Clamp per
+        // axis; when the tooltip exceeds the screen the max bound collapses
+        // onto the min bound, pinning it to the top-left corner.
+        let max_pos = screen.max - tooltip_size;
+        let min_pos = pos2(
+            min_pos.x.clamp(screen.min.x, max_pos.x.max(screen.min.x)),
+            min_pos.y.clamp(screen.min.y, max_pos.y.max(screen.min.y)),
+        );
 
         Rect::from_min_size(min_pos, tooltip_size)
     }
@@ -374,5 +390,40 @@ mod width_knob_tests {
         // Below the padding floor → raised, never a negative wrap width
         assert_eq!(Tooltip::new("t").max_width(10.0).max_width, MIN_TOTAL_WIDTH);
         assert_eq!(Tooltip::new("t").max_width(400.0).max_width, 400.0);
+    }
+}
+
+#[cfg(test)]
+mod placement_tests {
+    use super::*;
+
+    /// A no-wrap galley wider than the screen must stay anchored inside the
+    /// viewport instead of centering most of itself offscreen.
+    #[test]
+    fn oversized_tooltip_is_clamped_to_the_screen() {
+        let screen = Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 600.0));
+        let target = Rect::from_min_max(pos2(480.0, 290.0), pos2(520.0, 310.0));
+        let tooltip = Tooltip::new("t");
+
+        let rect = tooltip.calculate_tooltip_rect(
+            target,
+            vec2(2000.0, 30.0),
+            6.0,
+            TooltipPosition::Bottom,
+            screen,
+        );
+        assert_eq!(rect.left(), screen.left());
+        assert!(rect.top() >= screen.top() && rect.top() <= 600.0 - 30.0);
+
+        // A normal tooltip stays centered above its target, unclamped
+        let rect = tooltip.calculate_tooltip_rect(
+            target,
+            vec2(100.0, 30.0),
+            6.0,
+            TooltipPosition::Bottom,
+            screen,
+        );
+        assert_eq!(rect.left(), target.center().x - 50.0);
+        assert_eq!(rect.top(), target.bottom() + 6.0);
     }
 }

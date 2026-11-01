@@ -25,6 +25,7 @@
 //! }
 //! ```
 
+use super::sanitize_opt_width;
 use crate::ext::ArmasContextExt;
 use egui::{self, Color32, CornerRadius};
 
@@ -135,10 +136,12 @@ impl<'a> Card<'a> {
         self
     }
 
-    /// Set custom width
+    /// Set custom width (finite positive; garbage such as NaN counts as
+    /// unset — a NaN here would poison every child rect via
+    /// `ui.set_max_width`)
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
+        self.width = sanitize_opt_width(width);
         self
     }
 
@@ -373,5 +376,18 @@ impl<R> CardResponse<R> {
     /// Whether the card is hovered
     pub fn hovered(&self) -> bool {
         self.response.hovered()
+    }
+}
+
+#[cfg(test)]
+mod width_knob_tests {
+    use super::*;
+
+    #[test]
+    fn garbage_width_is_sanitized_at_the_boundary() {
+        assert!(Card::new().width(f32::NAN).width.is_none());
+        assert!(Card::new().width(f32::INFINITY).width.is_none());
+        assert!(Card::new().width(0.0).width.is_none());
+        assert_eq!(Card::new().width(320.0).width, Some(320.0));
     }
 }
