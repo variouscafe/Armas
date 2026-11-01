@@ -125,6 +125,10 @@ pub(crate) const fn sanitize_opt_width(raw: f32) -> Option<f32> {
     }
 }
 
+/// Shared default for the plain-f32 width knobs whose constructors use
+/// 200pt (context menu, dropdown menu, slider, range slider).
+pub(crate) const DEFAULT_WIDTH: f32 = 200.0;
+
 #[cfg(test)]
 mod sanitize_tests {
     use super::*;

@@ -72,7 +72,6 @@ struct MenuRenderContext<'a> {
 // ============================================================================
 
 // Content: min-w-[8rem] = 128px
-const DEFAULT_WIDTH: f32 = 200.0;
 const CONTENT_MIN_WIDTH: f32 = 128.0;
 
 // Item: px-2 = 8px, py-1 = 5px, text size from theme.typography.sm, gap-2 = 8px, rounded-sm = 2px
@@ -398,7 +397,7 @@ impl DropdownMenu {
                 .style(PopoverStyle::Default) // shadcn: rounded-md border shadow-md
                 .padding(4.0), // p-1 = 4px (shadcn)
             is_open: None,
-            width: DEFAULT_WIDTH,
+            width: super::DEFAULT_WIDTH,
             item_height: DEFAULT_ITEM_HEIGHT,
         }
     }
@@ -420,7 +419,7 @@ impl DropdownMenu {
     /// Set the menu width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = sanitize_width(width, DEFAULT_WIDTH).max(CONTENT_MIN_WIDTH);
+        self.width = sanitize_width(width, super::DEFAULT_WIDTH).max(CONTENT_MIN_WIDTH);
         self
     }
 

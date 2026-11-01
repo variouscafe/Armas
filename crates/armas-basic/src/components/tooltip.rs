@@ -162,10 +162,12 @@ impl Tooltip {
         };
 
         // Determine position — the flip decision and the rect clamp must
-        // agree on one geometry source (the viewport), or a clamp can undo
-        // a flip the flip logic just made.
+        // agree on one geometry source (the content rect, the area egui
+        // documents as safe for content — the viewport includes
+        // status-bar/notch areas), or a clamp can undo a flip the flip
+        // logic just made.
         let target_rect = target_response.rect;
-        let screen = ui.ctx().viewport_rect();
+        let screen = ui.ctx().content_rect();
         let position = self.determine_position(screen, target_rect, tooltip_size, arrow_offset);
         let tooltip_rect =
             self.calculate_tooltip_rect(target_rect, tooltip_size, arrow_offset, position, screen);
@@ -194,7 +196,7 @@ impl Tooltip {
     /// Determine the best position for the tooltip
     fn determine_position(
         &self,
-        screen: Rect,
+        screen_rect: Rect,
         target_rect: Rect,
         tooltip_size: Vec2,
         arrow_offset: f32,
@@ -203,7 +205,6 @@ impl Tooltip {
             return pos;
         }
 
-        let screen_rect = screen;
         let spacing = arrow_offset;
 
         // Check available space in each direction

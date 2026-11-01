@@ -13,7 +13,6 @@ use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, Rect, Sense, Stroke, Ui};
 
 // shadcn Slider constants
-const DEFAULT_WIDTH: f32 = 200.0;
 const TRACK_HEIGHT: f32 = 6.0; // h-1.5 in tailwind (6px)
 const THUMB_RADIUS: f32 = 8.0; // size-4 thumb (16px diameter)
 
@@ -75,7 +74,7 @@ impl Slider {
             id: None,
             min,
             max,
-            width: DEFAULT_WIDTH,
+            width: super::DEFAULT_WIDTH,
             height: 20.0,
             show_value: true,
             label: None,
@@ -97,7 +96,7 @@ impl Slider {
     /// Set the slider width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = sanitize_width(width, DEFAULT_WIDTH);
+        self.width = sanitize_width(width, super::DEFAULT_WIDTH);
         self
     }
 

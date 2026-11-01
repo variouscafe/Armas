@@ -6,8 +6,6 @@ use super::sanitize_width;
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, Rect, Response, Sense, Stroke, Ui};
 
-const DEFAULT_WIDTH: f32 = 200.0;
-
 /// Which thumb is being dragged
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 enum DragTarget {
@@ -73,7 +71,7 @@ impl RangeSlider {
             id: None,
             range_min,
             range_max,
-            width: DEFAULT_WIDTH,
+            width: super::DEFAULT_WIDTH,
             height: 20.0,
             show_value: true,
             label: None,
@@ -94,7 +92,7 @@ impl RangeSlider {
     /// Set the slider width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = sanitize_width(width, DEFAULT_WIDTH);
+        self.width = sanitize_width(width, super::DEFAULT_WIDTH);
         self
     }
 

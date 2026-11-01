@@ -66,6 +66,11 @@ pub struct SidebarState {
     expanded_groups: std::collections::HashMap<String, bool>,
     /// Currently active item index
     active_index: Option<usize>,
+    /// Widths the spring animates between; kept in sync with the
+    /// [`Sidebar`] width knobs by `set_widths` so the targets follow the
+    /// knobs instead of the module defaults.
+    collapsed_width: f32,
+    expanded_width: f32,
 }
 
 impl Default for SidebarState {
@@ -89,30 +94,40 @@ impl SidebarState {
                 .params(SPRING_STIFFNESS, SPRING_DAMPING),
             expanded_groups: std::collections::HashMap::new(),
             active_index: None,
+            collapsed_width: SIDEBAR_WIDTH_ICON,
+            expanded_width: SIDEBAR_WIDTH,
+        }
+    }
+
+    /// Configure the widths the open/closed spring targets animate between
+    /// (defaults: 256 expanded / 48 collapsed). [`Sidebar`]'s
+    /// `.collapsed_width()`/`.expanded_width()` knobs apply this
+    /// automatically, including in controlled mode.
+    pub const fn set_widths(&mut self, collapsed: f32, expanded: f32) {
+        self.collapsed_width = collapsed;
+        self.expanded_width = expanded;
+        self.width_spring.set_target(self.target_width());
+    }
+
+    const fn target_width(&self) -> f32 {
+        if self.open {
+            self.expanded_width
+        } else {
+            self.collapsed_width
         }
     }
 
     /// Toggle the sidebar open/closed
     pub const fn toggle(&mut self) {
         self.open = !self.open;
-        let target = if self.open {
-            SIDEBAR_WIDTH
-        } else {
-            SIDEBAR_WIDTH_ICON
-        };
-        self.width_spring.set_target(target);
+        self.width_spring.set_target(self.target_width());
     }
 
     /// Set the sidebar open state
     pub const fn set_open(&mut self, open: bool) {
         if self.open != open {
             self.open = open;
-            let target = if open {
-                SIDEBAR_WIDTH
-            } else {
-                SIDEBAR_WIDTH_ICON
-            };
-            self.width_spring.set_target(target);
+            self.width_spring.set_target(self.target_width());
         }
     }
 
@@ -367,16 +382,21 @@ impl SidebarLayout {
         collapsed_width: f32,
         expanded_width: f32,
         content_rect: Rect,
+        open: bool,
     ) -> Self {
         let content_width = current_width;
         let denom = expanded_width - collapsed_width;
         let expansion_ratio = if denom.abs() > f32::EPSILON {
             ((content_width - collapsed_width) / denom).clamp(0.0, 1.0)
         } else {
-            // Collapsed == expanded: the sidebar never visibly resizes;
-            // treat it as fully expanded (its resting state) so the icon
-            // positions can't be poisoned by a divide-by-zero ratio.
-            1.0
+            // Collapsed == expanded (an icon rail): the width carries no
+            // information, so key the label visibility off the open state
+            // instead of poisoning the ratio with a divide-by-zero.
+            if open {
+                1.0
+            } else {
+                0.0
+            }
         };
 
         let icon_left_aligned_x =
@@ -485,12 +505,10 @@ impl<'a> Sidebar<'a> {
             ui.ctx().data_mut(|d| {
                 d.get_temp(sidebar_id).unwrap_or_else(|| {
                     let mut state = SidebarState::new(self.initial_open);
-                    // Apply custom widths
-                    let target = if self.initial_open {
-                        expanded_width
-                    } else {
-                        collapsed_width
-                    };
+                    state.set_widths(collapsed_width, expanded_width);
+                    // Start resting AT the target instead of animating from
+                    // the default width on the first frame.
+                    let target = state.target_width();
                     state.width_spring = SpringAnimation::new(target, target)
                         .params(SPRING_STIFFNESS, SPRING_DAMPING);
                     state
@@ -505,6 +523,11 @@ impl<'a> Sidebar<'a> {
             .external_state
             .as_deref_mut()
             .map_or(&mut internal_state, |ext| ext);
+
+        // Propagate the configured widths into the state (controlled mode
+        // constructs its state before these knobs are known; for the
+        // uncontrolled state this is idempotent).
+        state.set_widths(collapsed_width, expanded_width);
 
         // Update spring animation
         state.width_spring.update(dt);
@@ -555,6 +578,7 @@ impl<'a> Sidebar<'a> {
                     collapsed_width,
                     expanded_width,
                     placeholder_rect,
+                    state.open,
                 );
 
                 // Top padding
@@ -594,6 +618,7 @@ impl<'a> Sidebar<'a> {
                 collapsed_width,
                 expanded_width,
                 content_rect,
+                state.open,
             );
             render_background(ui, &theme, self.variant, rect, &layout);
         }
@@ -939,4 +964,43 @@ fn draw_badge(
         egui::FontId::proportional(11.0),
         text_color,
     );
+}
+
+#[cfg(test)]
+mod width_state_tests {
+    use super::*;
+
+    /// The width knobs must drive the spring targets, including after a
+    /// toggle (previously `toggle`/`set_open` jumped back to the hardcoded
+    /// 256/48 defaults, discarding `.collapsed_width()`/`.expanded_width()`).
+    #[test]
+    fn knobs_reach_the_spring_targets() {
+        let mut state = SidebarState::new(false);
+        assert_eq!(state.width_spring.target, SIDEBAR_WIDTH_ICON);
+
+        state.set_widths(70.0, 300.0);
+        assert_eq!(state.width_spring.target, 70.0, "closed → collapsed bound");
+
+        state.toggle();
+        assert_eq!(state.width_spring.target, 300.0, "opened → expanded bound");
+
+        state.set_open(false);
+        assert_eq!(state.width_spring.target, 70.0, "closed again");
+    }
+
+    /// Equal collapsed/expanded widths are an icon rail: the width carries
+    /// no information, so the ratio follows the open state instead of a
+    /// divide-by-zero.
+    #[test]
+    fn equal_widths_ratio_follows_open_state() {
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(48.0, 100.0));
+        let closed = SidebarLayout::compute(48.0, 48.0, 48.0, rect, false);
+        assert_eq!(closed.expansion_ratio, 0.0);
+        let open = SidebarLayout::compute(48.0, 48.0, 48.0, rect, true);
+        assert_eq!(open.expansion_ratio, 1.0);
+
+        // Distinct widths keep the width-derived ratio
+        let mid = SidebarLayout::compute(178.0, 48.0, 256.0, rect, true);
+        assert!((mid.expansion_ratio - 0.625).abs() < 1e-4);
+    }
 }
