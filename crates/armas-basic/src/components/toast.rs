@@ -43,6 +43,7 @@
 //! # }
 //! ```
 
+use super::sanitize_width;
 use crate::animation::SpringAnimation;
 use crate::ext::ArmasContextExt;
 use crate::icon;
@@ -224,7 +225,7 @@ impl ToastManager {
     /// Set the width of toast notifications
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = width;
+        self.width = sanitize_width(width, TOAST_WIDTH);
         self
     }
 

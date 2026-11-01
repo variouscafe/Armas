@@ -8,6 +8,7 @@
 //! - Link: Text style with underline on hover
 
 use super::content::ContentContext;
+use super::sanitize_opt_width;
 use crate::ext::ArmasContextExt;
 use crate::Theme;
 use egui::{Color32, Response, Sense, Ui, Vec2};
@@ -235,10 +236,11 @@ impl Button {
         self
     }
 
-    /// Set minimum width for the button
+    /// Set minimum width for the button (finite positive; garbage such as
+    /// NaN counts as unset)
     #[must_use]
     pub const fn min_width(mut self, width: f32) -> Self {
-        self.min_width = Some(width);
+        self.min_width = sanitize_opt_width(width);
         self
     }
 
@@ -249,11 +251,13 @@ impl Button {
         self
     }
 
-    /// Fixed outer width in points (content centres inside).
+    /// Fixed outer width in points (content centres inside); finite
+    /// positive — garbage such as NaN counts as unset.
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.min_width = Some(width);
-        self.content_width = Some(width);
+        let width = sanitize_opt_width(width);
+        self.min_width = width;
+        self.content_width = width;
         self
     }
 
@@ -263,7 +267,7 @@ impl Button {
     /// available for the closure. If not set, defaults to a square (height-based) layout.
     #[must_use]
     pub const fn content_width(mut self, width: f32) -> Self {
-        self.content_width = Some(width);
+        self.content_width = sanitize_opt_width(width);
         self
     }
 

@@ -7,6 +7,7 @@
 //! - Icons (left and right)
 //! - Password masking
 
+use super::sanitize_opt_width;
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Response, Sense, Stroke, TextEdit, Ui, Vec2};
 
@@ -168,7 +169,7 @@ impl Input {
     /// Set width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
+        self.width = sanitize_opt_width(width);
         self
     }
 
@@ -484,7 +485,7 @@ impl SearchInput {
     /// Set width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
+        self.width = sanitize_opt_width(width);
         self
     }
 

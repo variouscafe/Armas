@@ -4,6 +4,7 @@
 //! Supports info (default) and destructive variants.
 //! Built on top of Card component for consistency.
 
+use super::sanitize_opt_width;
 use crate::ext::ArmasContextExt;
 use crate::icon;
 use crate::{Card, CardVariant, Theme};
@@ -132,7 +133,7 @@ impl Alert {
     /// Set a fixed width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
+        self.width = sanitize_opt_width(width);
         self
     }
 

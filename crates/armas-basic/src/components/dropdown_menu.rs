@@ -13,6 +13,7 @@
 //! - Separator: bg-border h-px -mx-1 my-1
 //! - Label: px-2 py-1.5 text-sm font-medium
 
+use super::sanitize_width;
 use crate::components::Kbd;
 use crate::icon;
 use crate::{Popover, PopoverPosition, PopoverStyle};
@@ -418,7 +419,7 @@ impl DropdownMenu {
     /// Set the menu width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = width.max(CONTENT_MIN_WIDTH);
+        self.width = sanitize_width(width, 200.0).max(CONTENT_MIN_WIDTH);
         self
     }
 

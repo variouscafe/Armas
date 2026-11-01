@@ -2,6 +2,7 @@
 //!
 //! A hierarchical tree view for displaying nested items like files/folders.
 
+use super::sanitize_width;
 use crate::ext::ArmasContextExt;
 use egui::{Pos2, Response, Sense, Ui, Vec2};
 use serde::{Deserialize, Serialize};
@@ -160,7 +161,7 @@ impl TreeView {
     /// Set width (0 = fill available)
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = width;
+        self.width = sanitize_width(width, 0.0);
         self
     }
 

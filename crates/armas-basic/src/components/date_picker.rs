@@ -17,6 +17,7 @@
 //! # }
 //! ```
 
+use super::sanitize_width;
 use crate::ext::ArmasContextExt;
 use crate::{Popover, PopoverPosition, Theme};
 use egui::{vec2, Id, Rect, Sense, Ui};
@@ -226,7 +227,7 @@ impl DatePicker {
     /// Set trigger button width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = width;
+        self.width = sanitize_width(width, TRIGGER_WIDTH);
         self
     }
 

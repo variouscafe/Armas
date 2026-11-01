@@ -7,6 +7,7 @@
 //! - Optional velocity-based dragging (hold Ctrl/Cmd)
 //! - Labels and value display
 
+use super::sanitize_width;
 use crate::animation::{DragMode, VelocityDrag, VelocityDragConfig};
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, Rect, Sense, Stroke, Ui};
@@ -95,7 +96,7 @@ impl Slider {
     /// Set the slider width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = width;
+        self.width = sanitize_width(width, 200.0);
         self
     }
 

@@ -15,6 +15,7 @@
 //! # }
 //! ```
 
+use super::sanitize_opt_width;
 use crate::ext::ArmasContextExt;
 use egui::{vec2, Id, Sense, Stroke, Ui};
 
@@ -60,7 +61,7 @@ impl InputGroup {
     /// Set the input group width.
     #[must_use]
     pub const fn width(mut self, w: f32) -> Self {
-        self.width = Some(w);
+        self.width = sanitize_opt_width(w);
         self
     }
 

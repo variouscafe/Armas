@@ -3,6 +3,7 @@
 //! A card that appears on hover with configurable open/close delays.
 //! Placeholder — implementation follows.
 
+use super::sanitize_opt_width;
 use crate::components::popover::{Popover, PopoverPosition, PopoverStyle};
 use egui::{Id, Ui};
 
@@ -73,7 +74,7 @@ impl HoverCard {
     /// Set the card width.
     #[must_use]
     pub const fn width(mut self, w: f32) -> Self {
-        self.width = Some(w);
+        self.width = sanitize_opt_width(w);
         self
     }
 

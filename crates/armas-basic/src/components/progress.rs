@@ -5,6 +5,7 @@
 //! - Progress: Simple horizontal progress bar (shadcn style)
 //! - `CircularProgressBar`: Circular/spinner progress
 
+use super::sanitize_opt_width;
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Pos2, Ui, Vec2};
 use std::f32::consts::PI;
@@ -59,7 +60,7 @@ impl Progress {
     /// Set the width of the progress bar
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
+        self.width = sanitize_opt_width(width);
         self
     }
 

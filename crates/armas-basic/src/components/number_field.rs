@@ -9,6 +9,7 @@
 //! - Labels and descriptions
 //! - Disabled state
 
+use super::sanitize_opt_width;
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, CornerRadius, Response, Sense, Stroke, Ui, Vec2};
 
@@ -122,7 +123,7 @@ impl NumberField {
     /// Set width of the entire component
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
+        self.width = sanitize_opt_width(width);
         self
     }
 

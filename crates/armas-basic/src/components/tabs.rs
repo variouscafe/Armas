@@ -4,6 +4,7 @@
 //! Features a muted background container with animated active indicator.
 
 use super::content::ContentContext;
+use super::sanitize_width;
 use crate::ext::ArmasContextExt;
 use egui::{Pos2, Ui, Vec2};
 
@@ -107,7 +108,7 @@ impl Tabs {
     /// Set width (0 = fit content, which is the default)
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = width;
+        self.width = sanitize_width(width, 0.0);
         self
     }
 

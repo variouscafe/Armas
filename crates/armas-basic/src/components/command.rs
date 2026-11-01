@@ -2,6 +2,7 @@
 //!
 //! A command palette for search and quick actions. Styled to match shadcn/ui command.
 
+use super::sanitize_width;
 use crate::animation::{Animation, EasingFunction};
 use crate::components::Kbd;
 use crate::ext::ArmasContextExt;
@@ -205,7 +206,7 @@ impl Command {
     /// Set the panel width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = width;
+        self.width = sanitize_width(width, DEFAULT_PANEL_WIDTH);
         self
     }
 

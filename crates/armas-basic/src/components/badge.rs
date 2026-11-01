@@ -8,6 +8,7 @@
 //! - Outline (border only)
 
 use super::content::ContentContext;
+use super::sanitize_opt_width;
 use crate::ext::ArmasContextExt;
 use crate::Theme;
 use egui::{Color32, Pos2, Response, Ui, Vec2};
@@ -162,7 +163,7 @@ impl Badge {
     /// Set minimum width
     #[must_use]
     pub const fn min_width(mut self, width: f32) -> Self {
-        self.min_width = Some(width);
+        self.min_width = sanitize_opt_width(width);
         self
     }
 

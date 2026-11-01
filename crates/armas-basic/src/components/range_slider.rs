@@ -2,6 +2,7 @@
 //!
 //! Horizontal slider with two thumbs for selecting a range (min/max).
 
+use super::sanitize_width;
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, Rect, Response, Sense, Stroke, Ui};
 
@@ -91,7 +92,7 @@ impl RangeSlider {
     /// Set the slider width
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = width;
+        self.width = sanitize_width(width, 200.0);
         self
     }
 
