@@ -6,6 +6,6 @@ pub mod site_hero;
 pub mod site_sidebar;
 
 pub use components_list::ComponentsListPage;
-pub use site_header::{SiteHeader, SiteHeaderResponse};
+pub use site_header::{SiteHeader, SiteHeaderResponse, ThemeToggleIcon};
 pub use site_hero::SiteHero;
 pub use site_sidebar::{SiteSidebar, SiteSidebarResponse};

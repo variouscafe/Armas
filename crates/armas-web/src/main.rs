@@ -8,7 +8,7 @@ mod url_utils;
 pub mod web_icons;
 
 use armas::*;
-use components::{ComponentsListPage, SiteHeader, SiteHero, SiteSidebar};
+use components::{ComponentsListPage, SiteHeader, SiteHero, SiteSidebar, ThemeToggleIcon};
 use eframe::egui;
 
 // =============================================================================
@@ -70,13 +70,6 @@ impl AppTheme {
         }
     }
 
-    fn toggle(&self) -> Self {
-        match self {
-            Self::Dark(_) => Self::light(),
-            Self::Light(_) => Self::dark(),
-        }
-    }
-
     fn is_dark(&self) -> bool {
         matches!(self, Self::Dark(_))
     }
@@ -103,16 +96,45 @@ struct ShowcaseApp {
     /// theme, which on wasm only reaches egui AFTER `new` returns (eframe
     /// applies the browser theme on the first pass) and can change at
     /// runtime (OS theme switch), so `ui` watches the mode and re-styles
-    /// when it moves. Goes stale while pinned — an unpin path would have to
-    /// re-sync this before the follow guard reads it.
+    /// when it moves. Only meaningful (and kept in sync) while the source
+    /// is `ThemeSource::System`.
     last_mode: egui::Theme,
-    /// Set by the first manual toggle: from then on the user's choice wins
-    /// over the system theme.
-    user_pinned: bool,
+    /// Where the effective theme comes from: the system theme, or a user
+    /// pin reached by cycling the header toggle (System → Light → Dark →
+    /// System — the toggle icon depicts the NEXT state).
+    theme_source: ThemeSource,
     search_text: String,
     page_state: PageState,
     sidebar_open: bool,
     pages: Vec<Page>,
+}
+
+/// Source of the effective theme. `System` follows the OS/browser theme
+/// (including runtime changes); `Light`/`Dark` are user pins.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ThemeSource {
+    System,
+    Light,
+    Dark,
+}
+
+impl ThemeSource {
+    fn cycle(self) -> Self {
+        match self {
+            Self::System => Self::Light,
+            Self::Light => Self::Dark,
+            Self::Dark => Self::System,
+        }
+    }
+
+    /// The header toggle icon depicts the NEXT state in the cycle.
+    fn toggle_icon(self) -> ThemeToggleIcon {
+        match self {
+            Self::System => ThemeToggleIcon::Light,
+            Self::Light => ThemeToggleIcon::Dark,
+            Self::Dark => ThemeToggleIcon::System,
+        }
+    }
 }
 
 impl ShowcaseApp {
@@ -129,7 +151,7 @@ impl ShowcaseApp {
         Self {
             theme,
             last_mode: mode,
-            user_pinned: false,
+            theme_source: ThemeSource::System,
             search_text: String::new(),
             page_state,
             sidebar_open: false,
@@ -182,18 +204,39 @@ impl ShowcaseApp {
         font_builder.install(ctx, true);
     }
 
-    fn toggle_theme(&mut self, ctx: &egui::Context) {
-        self.user_pinned = true;
-        self.theme = self.theme.toggle();
-        // Flip the egui mode too: without this the armas background lands in
-        // the wrong mode's style and the old mode's foreground colors stay,
-        // e.g. light-on-light headers on a dark-preferring OS.
-        ctx.set_theme(if self.theme.is_dark() {
-            egui::ThemePreference::Dark
-        } else {
-            egui::ThemePreference::Light
-        });
-        Self::apply_theme(&self.theme, ctx);
+    /// Cycle the theme source: System → Light → Dark → System. Returning to
+    /// System resumes following the OS/browser theme (including runtime
+    /// changes); the pin states also flip the egui mode so the background
+    /// and the foreground colors always land in the same mode.
+    fn cycle_theme(&mut self, ctx: &egui::Context) {
+        self.theme_source = self.theme_source.cycle();
+        match self.theme_source {
+            ThemeSource::System => {
+                ctx.set_theme(egui::ThemePreference::System);
+                let mode = ctx.theme();
+                self.last_mode = mode;
+                self.theme = Self::theme_for_mode(mode);
+                Self::apply_theme(&self.theme, ctx);
+            }
+            ThemeSource::Light | ThemeSource::Dark => {
+                self.theme = if self.theme_source == ThemeSource::Dark {
+                    AppTheme::dark()
+                } else {
+                    AppTheme::light()
+                };
+                self.last_mode = if self.theme.is_dark() {
+                    egui::Theme::Dark
+                } else {
+                    egui::Theme::Light
+                };
+                ctx.set_theme(if self.theme.is_dark() {
+                    egui::ThemePreference::Dark
+                } else {
+                    egui::ThemePreference::Light
+                });
+                Self::apply_theme(&self.theme, ctx);
+            }
+        }
     }
 
     /// Map an egui theme mode to the matching [`AppTheme`].
@@ -264,7 +307,7 @@ impl eframe::App for ShowcaseApp {
         // System so egui keeps tracking the OS/browser theme; we only
         // re-style ours to match.
         let mode = ui.ctx().theme();
-        if !self.user_pinned && mode != self.last_mode {
+        if self.theme_source == ThemeSource::System && mode != self.last_mode {
             self.last_mode = mode;
             self.theme = Self::theme_for_mode(mode);
             let ctx = ui.ctx();
@@ -276,7 +319,7 @@ impl eframe::App for ShowcaseApp {
 
             // Header
             let header_response =
-                SiteHeader::new(self.theme.theme(), self.theme.is_dark()).show(ui);
+                SiteHeader::new(self.theme.theme(), self.theme_source.toggle_icon()).show(ui);
             self.handle_header_response(ui.ctx(), header_response);
 
             // Main content — mobile sidebar overlay takes priority on any page
@@ -354,7 +397,7 @@ impl ShowcaseApp {
             Self::open_url("https://docs.rs/armas");
         }
         if response.theme_toggle_clicked {
-            self.toggle_theme(ctx);
+            self.cycle_theme(ctx);
         }
         if response.hamburger_clicked {
             self.sidebar_open = !self.sidebar_open;

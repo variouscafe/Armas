@@ -3,9 +3,20 @@
 use armas::*;
 use eframe::egui;
 
+/// Which theme-cycle state the header toggle icon should depict — the icon
+/// shows the NEXT state in the app's System → Light → Dark → System cycle.
+pub enum ThemeToggleIcon {
+    /// Currently System: clicking pins Light.
+    Light,
+    /// Currently Light: clicking pins Dark.
+    Dark,
+    /// Currently Dark: clicking resumes following the system theme.
+    System,
+}
+
 pub struct SiteHeader<'a> {
     theme: &'a Theme,
-    is_dark: bool,
+    toggle_icon: ThemeToggleIcon,
 }
 
 pub struct SiteHeaderResponse {
@@ -20,8 +31,8 @@ pub struct SiteHeaderResponse {
 }
 
 impl<'a> SiteHeader<'a> {
-    pub fn new(theme: &'a Theme, is_dark: bool) -> Self {
-        Self { theme, is_dark }
+    pub fn new(theme: &'a Theme, toggle_icon: ThemeToggleIcon) -> Self {
+        Self { theme, toggle_icon }
     }
 
     pub fn show(self, ui: &mut egui::Ui) -> SiteHeaderResponse {
@@ -133,10 +144,10 @@ impl<'a> SiteHeader<'a> {
 
                             Self::render_separator(ui, self.theme);
 
-                            let icon_data = if self.is_dark {
-                                crate::web_icons::light()
-                            } else {
-                                crate::web_icons::dark()
+                            let icon_data = match self.toggle_icon {
+                                ThemeToggleIcon::Light => crate::web_icons::light(),
+                                ThemeToggleIcon::Dark => crate::web_icons::dark(),
+                                ThemeToggleIcon::System => crate::web_icons::system(),
                             };
                             if IconButton::from_owned(icon_data)
                                 .variant(ButtonVariant::Ghost)
