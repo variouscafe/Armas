@@ -176,21 +176,30 @@ impl ShowcaseApp {
     fn toggle_theme(&mut self, ctx: &egui::Context) {
         self.theme = self.theme.toggle();
         ctx.set_armas_theme(self.theme.theme().clone());
+        // Flip the egui mode too: without this the armas background lands in
+        // the wrong mode's style and the old mode's foreground colors stay,
+        // e.g. light-on-light headers on a dark-preferring OS.
+        ctx.set_theme(if self.theme.is_dark() {
+            egui::ThemePreference::Dark
+        } else {
+            egui::ThemePreference::Light
+        });
         Self::apply_egui_style(ctx, &self.theme);
     }
 
-    /// Tint the egui style with the armas theme background. Called from
+    /// Tint the egui styles with the armas theme background. Called from
     /// `new` and `toggle_theme` only — the style only changes when the theme
-    /// does, and rewriting it every frame needlessly invalidates style
-    /// caches and allocates.
+    /// does. Both modes are tinted in place (`all_styles_mut`) so a runtime
+    /// mode switch (eframe applies the wasm system theme after `new`, the
+    /// prefers-color-scheme listener and native `ThemeChanged` fire later)
+    /// can never activate an untinted style.
     fn apply_egui_style(ctx: &egui::Context, theme: &AppTheme) {
-        let mode = ctx.theme();
-        let mut style = (*ctx.style_of(mode)).clone();
         let bg = theme.theme().background();
-        style.visuals.panel_fill = bg;
-        style.visuals.window_fill = bg;
-        style.visuals.extreme_bg_color = bg;
-        ctx.set_style_of(mode, style);
+        ctx.all_styles_mut(|style| {
+            style.visuals.panel_fill = bg;
+            style.visuals.window_fill = bg;
+            style.visuals.extreme_bg_color = bg;
+        });
     }
 
     fn open_url(url: &str) {
