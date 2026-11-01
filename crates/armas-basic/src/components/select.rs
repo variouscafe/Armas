@@ -25,9 +25,10 @@ const CORNER_RADIUS: u8 = 6;
 const CORNER_RADIUS_SM: u8 = 4;
 const PADDING: f32 = 8.0;
 const ICON_WIDTH: f32 = 24.0;
-// Cap the auto width: defaulting to the full available width explodes layouts
-// when the Select sits inside a horizontal row (the row then demands the
-// whole parent width). 280pt keeps the shadcn auto feel.
+// Default cap for the auto width: defaulting to the full available width
+// explodes layouts when the Select sits inside a horizontal row (the row
+// then demands the whole parent width). 280pt keeps the shadcn auto feel;
+// callers can raise or lower it with `.max_width()`.
 const AUTO_WIDTH_MAX: f32 = 280.0;
 // Fallback when the available width is unknown (infinite).
 const AUTO_WIDTH_FALLBACK: f32 = 200.0;
@@ -124,6 +125,7 @@ pub struct Select {
     label: Option<String>,
     placeholder: String,
     width: Option<f32>,
+    max_width: f32,
     custom_height: Option<f32>,
     max_height: f32,
     searchable: bool,
@@ -148,6 +150,7 @@ impl Select {
             label: None,
             placeholder: "Select an option...".to_string(),
             width: None,
+            max_width: AUTO_WIDTH_MAX,
             custom_height: None,
             max_height: 300.0,
             searchable: true,
@@ -195,10 +198,19 @@ impl Select {
     }
 
     /// Set an explicit width in points, overriding the auto width
-    /// (available width capped at 280pt, 200pt fallback, 16pt floor).
+    /// (available width capped at `.max_width()` — 280pt by default,
+    /// 200pt fallback, 16pt floor).
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
+        self
+    }
+
+    /// Set the cap for the auto width (default 280pt). Ignored when an
+    /// explicit `.width()` is set. Mirrors `Popover::max_width`.
+    #[must_use]
+    pub const fn max_width(mut self, max_width: f32) -> Self {
+        self.max_width = max_width;
         self
     }
 
@@ -263,15 +275,15 @@ impl Select {
     pub fn show(&mut self, ui: &mut Ui) -> SelectResponse {
         let theme = ui.ctx().armas_theme();
         let avail = ui.available_width();
-        // Auto width: available width capped at `AUTO_WIDTH_MAX` (see the
-        // constant block for why), floored at `MIN_WIDTH` so the dropdown's
-        // `width - 16` subtractions stay non-negative. Explicit `.width()`
-        // overrides the auto value but is still floored.
+        // Auto width: available width capped at `.max_width()` (see the
+        // constant block for why a cap exists), floored at `MIN_WIDTH` so
+        // the dropdown's `width - 16` subtractions stay non-negative.
+        // Explicit `.width()` overrides the auto value but is still floored.
         let width = self
             .width
             .unwrap_or_else(|| {
                 if avail.is_finite() {
-                    avail.min(AUTO_WIDTH_MAX)
+                    avail.min(self.max_width)
                 } else {
                     AUTO_WIDTH_FALLBACK
                 }

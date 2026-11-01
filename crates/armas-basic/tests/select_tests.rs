@@ -312,3 +312,26 @@ fn test_select_dropdown_opens_in_tiny_container() {
         );
     }
 }
+
+/// The auto-width cap is a knob: `.max_width()` overrides the 280pt default
+#[test]
+fn test_select_max_width_knob() {
+    let options = vec![SelectOption::new("1", "Option 1")];
+
+    let mut select = Select::new(options).max_width(150.0);
+    let mut trigger_width = 0.0;
+
+    {
+        let mut harness = Harness::new_ui(|ui| {
+            let response = select.show(ui);
+            trigger_width = response.response.rect.width();
+        });
+        harness.set_size(egui::vec2(600.0, 400.0));
+        harness.run();
+    }
+
+    assert!(
+        (trigger_width - 150.0).abs() < 0.5,
+        "expected ~150, got {trigger_width}"
+    );
+}
