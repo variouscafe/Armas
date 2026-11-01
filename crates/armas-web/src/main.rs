@@ -98,6 +98,15 @@ type Page = (&'static str, PageShowFn);
 
 struct ShowcaseApp {
     theme: AppTheme,
+    /// Last egui mode the app is styled for. Until the user pins a theme
+    /// with a manual toggle the app follows the system theme, which on wasm
+    /// only reaches egui AFTER `new` returns (eframe applies the browser
+    /// theme on the first pass) and can change at runtime (OS theme switch),
+    /// so `ui` watches the mode and re-styles when it moves.
+    last_mode: egui::Theme,
+    /// Set by the first manual toggle: from then on the user's choice wins
+    /// over the system theme.
+    user_pinned: bool,
     search_text: String,
     page_state: PageState,
     sidebar_open: bool,
@@ -106,7 +115,8 @@ struct ShowcaseApp {
 
 impl ShowcaseApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let theme = if cc.egui_ctx.theme() == egui::Theme::Dark {
+        let mode = cc.egui_ctx.theme();
+        let theme = if mode == egui::Theme::Dark {
             AppTheme::dark()
         } else {
             AppTheme::light()
@@ -121,6 +131,8 @@ impl ShowcaseApp {
 
         Self {
             theme,
+            last_mode: mode,
+            user_pinned: false,
             search_text: String::new(),
             page_state,
             sidebar_open: false,
@@ -174,7 +186,13 @@ impl ShowcaseApp {
     }
 
     fn toggle_theme(&mut self, ctx: &egui::Context) {
+        self.user_pinned = true;
         self.theme = self.theme.toggle();
+        self.last_mode = if self.theme.is_dark() {
+            egui::Theme::Dark
+        } else {
+            egui::Theme::Light
+        };
         ctx.set_armas_theme(self.theme.theme().clone());
         // Flip the egui mode too: without this the armas background lands in
         // the wrong mode's style and the old mode's foreground colors stay,
@@ -229,6 +247,24 @@ impl eframe::App for ShowcaseApp {
             if url_page != self.page_state {
                 self.page_state = url_page;
             }
+        }
+
+        // Follow the system theme until the user pins one — on wasm the
+        // browser theme only reaches egui after `new`, and the OS theme can
+        // change later. No ctx.set_theme here: the preference must stay
+        // System so egui keeps tracking the OS/browser theme; we only
+        // re-style ours to match.
+        let mode = ui.ctx().theme();
+        if !self.user_pinned && mode != self.last_mode {
+            self.last_mode = mode;
+            self.theme = if mode == egui::Theme::Dark {
+                AppTheme::dark()
+            } else {
+                AppTheme::light()
+            };
+            let ctx = ui.ctx();
+            ctx.set_armas_theme(self.theme.theme().clone());
+            Self::apply_egui_style(ctx, &self.theme);
         }
 
         egui::CentralPanel::default().show(ui, |ui| {
