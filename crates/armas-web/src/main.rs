@@ -116,15 +116,10 @@ struct ShowcaseApp {
 impl ShowcaseApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let mode = cc.egui_ctx.theme();
-        let theme = if mode == egui::Theme::Dark {
-            AppTheme::dark()
-        } else {
-            AppTheme::light()
-        };
+        let theme = Self::theme_for_mode(mode);
 
         Self::setup_fonts(&cc.egui_ctx);
-        cc.egui_ctx.set_armas_theme(theme.theme().clone());
-        Self::apply_egui_style(&cc.egui_ctx, &theme);
+        Self::apply_theme(&theme, &cc.egui_ctx);
 
         // Parse URL and set initial page
         let page_state = Self::page_from_url();
@@ -188,12 +183,6 @@ impl ShowcaseApp {
     fn toggle_theme(&mut self, ctx: &egui::Context) {
         self.user_pinned = true;
         self.theme = self.theme.toggle();
-        self.last_mode = if self.theme.is_dark() {
-            egui::Theme::Dark
-        } else {
-            egui::Theme::Light
-        };
-        ctx.set_armas_theme(self.theme.theme().clone());
         // Flip the egui mode too: without this the armas background lands in
         // the wrong mode's style and the old mode's foreground colors stay,
         // e.g. light-on-light headers on a dark-preferring OS.
@@ -202,7 +191,24 @@ impl ShowcaseApp {
         } else {
             egui::ThemePreference::Light
         });
-        Self::apply_egui_style(ctx, &self.theme);
+        Self::apply_theme(&self.theme, ctx);
+    }
+
+    /// Map an egui theme mode to the matching [`AppTheme`].
+    fn theme_for_mode(mode: egui::Theme) -> AppTheme {
+        if mode == egui::Theme::Dark {
+            AppTheme::dark()
+        } else {
+            AppTheme::light()
+        }
+    }
+
+    /// Style armas + egui for `theme`. Does NOT touch the egui theme
+    /// preference — callers decide whether to pin an explicit mode
+    /// (`ctx.set_theme`) or keep following System.
+    fn apply_theme(theme: &AppTheme, ctx: &egui::Context) {
+        ctx.set_armas_theme(theme.theme().clone());
+        Self::apply_egui_style(ctx, theme);
     }
 
     /// Tint the egui styles with the armas theme background. Called from
@@ -257,14 +263,9 @@ impl eframe::App for ShowcaseApp {
         let mode = ui.ctx().theme();
         if !self.user_pinned && mode != self.last_mode {
             self.last_mode = mode;
-            self.theme = if mode == egui::Theme::Dark {
-                AppTheme::dark()
-            } else {
-                AppTheme::light()
-            };
+            self.theme = Self::theme_for_mode(mode);
             let ctx = ui.ctx();
-            ctx.set_armas_theme(self.theme.theme().clone());
-            Self::apply_egui_style(ctx, &self.theme);
+            Self::apply_theme(&self.theme, ctx);
         }
 
         egui::CentralPanel::default().show(ui, |ui| {
