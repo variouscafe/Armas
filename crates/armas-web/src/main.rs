@@ -106,7 +106,7 @@ struct ShowcaseApp {
 
 impl ShowcaseApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let theme = if cc.egui_ctx.style().visuals.dark_mode {
+        let theme = if cc.egui_ctx.theme() == egui::Theme::Dark {
             AppTheme::dark()
         } else {
             AppTheme::light()
@@ -196,7 +196,7 @@ impl ShowcaseApp {
 // =============================================================================
 
 impl eframe::App for ShowcaseApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // Sync page from URL if it changed (handles back/forward)
         #[cfg(target_arch = "wasm32")]
         {
@@ -207,14 +207,18 @@ impl eframe::App for ShowcaseApp {
         }
 
         // Apply theme
-        let mut style = (*ctx.style()).clone();
-        let bg = self.theme.theme().background();
-        style.visuals.panel_fill = bg;
-        style.visuals.window_fill = bg;
-        style.visuals.extreme_bg_color = bg;
-        ctx.set_style(style);
+        {
+            let ctx = ui.ctx();
+            let theme = ctx.theme();
+            let mut style = (*ctx.style_of(theme)).clone();
+            let bg = self.theme.theme().background();
+            style.visuals.panel_fill = bg;
+            style.visuals.window_fill = bg;
+            style.visuals.extreme_bg_color = bg;
+            ctx.set_style_of(theme, style);
+        }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
 
             // Header
@@ -235,7 +239,7 @@ impl eframe::App for ShowcaseApp {
             }
         });
 
-        ctx.request_repaint();
+        ui.ctx().request_repaint();
     }
 }
 

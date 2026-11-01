@@ -9,10 +9,10 @@ use egui_kittest::Harness;
 fn test_drawer_renders_open() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut drawer = Drawer::new("test_drawer").title("Test Drawer").open(true);
 
-        drawer.show(ctx, &theme, |ui| {
+        drawer.show(ui.ctx(), &theme, |ui| {
             ui.label("Drawer content");
         });
     });
@@ -25,10 +25,10 @@ fn test_drawer_renders_open() {
 fn test_drawer_closed() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut drawer = Drawer::new("test_drawer").title("Test Drawer").open(false);
 
-        drawer.show(ctx, &theme, |ui| {
+        drawer.show(ui.ctx(), &theme, |ui| {
             ui.label("Drawer content");
         });
     });
@@ -41,10 +41,10 @@ fn test_drawer_closed() {
 fn test_drawer_no_title() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut drawer = Drawer::new("no_title_drawer").open(true);
 
-        drawer.show(ctx, &theme, |ui| {
+        drawer.show(ui.ctx(), &theme, |ui| {
             ui.label("Content without title");
         });
     });
@@ -57,13 +57,13 @@ fn test_drawer_no_title() {
 fn test_drawer_with_description() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut drawer = Drawer::new("desc_drawer")
             .title("Settings")
             .description("Configure your preferences")
             .open(true);
 
-        drawer.show(ctx, &theme, |ui| {
+        drawer.show(ui.ctx(), &theme, |ui| {
             ui.label("Settings content");
         });
     });
@@ -76,13 +76,13 @@ fn test_drawer_with_description() {
 fn test_drawer_no_handle() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut drawer = Drawer::new("no_handle")
             .title("No Handle")
             .show_handle(false)
             .open(true);
 
-        drawer.show(ctx, &theme, |ui| {
+        drawer.show(ui.ctx(), &theme, |ui| {
             ui.label("This drawer has no drag handle");
         });
     });
@@ -95,13 +95,13 @@ fn test_drawer_no_handle() {
 fn test_drawer_no_backdrop() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut drawer = Drawer::new("no_backdrop")
             .title("No Backdrop")
             .show_backdrop(false)
             .open(true);
 
-        drawer.show(ctx, &theme, |ui| {
+        drawer.show(ui.ctx(), &theme, |ui| {
             ui.label("No backdrop behind");
         });
     });
@@ -114,13 +114,13 @@ fn test_drawer_no_backdrop() {
 fn test_drawer_custom_height() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut drawer = Drawer::new("custom_height")
             .title("Custom Height")
             .height(300.0)
             .open(true);
 
-        drawer.show(ctx, &theme, |ui| {
+        drawer.show(ui.ctx(), &theme, |ui| {
             ui.label("Custom 300px height");
         });
     });
@@ -133,13 +133,13 @@ fn test_drawer_custom_height() {
 fn test_drawer_form_content() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut drawer = Drawer::new("form_drawer")
             .title("Edit Profile")
             .description("Make changes to your profile")
             .open(true);
 
-        drawer.show(ctx, &theme, |ui| {
+        drawer.show(ui.ctx(), &theme, |ui| {
             ui.vertical(|ui| {
                 let mut enabled = true;
                 Switch::new().label("Dark Mode").show(ui, &mut enabled);

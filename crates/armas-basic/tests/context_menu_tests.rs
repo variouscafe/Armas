@@ -6,8 +6,8 @@ use egui_kittest::Harness;
 /// Test that `ContextMenu` renders without panicking when closed
 #[test]
 fn test_context_menu_closed() {
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let response = ui.allocate_response(egui::vec2(200.0, 100.0), egui::Sense::click());
             let mut menu = ContextMenu::new("test_ctx_menu");
             menu.show(ui.ctx(), &response, |menu| {
@@ -24,8 +24,8 @@ fn test_context_menu_closed() {
 /// Test `ContextMenu` with custom width
 #[test]
 fn test_context_menu_custom_width() {
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let response = ui.allocate_response(egui::vec2(200.0, 100.0), egui::Sense::click());
             let mut menu = ContextMenu::new("wide_ctx_menu").width(300.0);
             menu.show(ui.ctx(), &response, |menu| {
@@ -41,8 +41,8 @@ fn test_context_menu_custom_width() {
 /// Test `ContextMenu` with separators and destructive items
 #[test]
 fn test_context_menu_with_separators() {
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let response = ui.allocate_response(egui::vec2(200.0, 100.0), egui::Sense::click());
             let mut menu = ContextMenu::new("sep_ctx_menu");
             menu.show(ui.ctx(), &response, |menu| {
@@ -60,8 +60,8 @@ fn test_context_menu_with_separators() {
 /// Test `ContextMenu` with shortcuts and icons
 #[test]
 fn test_context_menu_full() {
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let response = ui.allocate_response(egui::vec2(200.0, 100.0), egui::Sense::click());
             let mut menu = ContextMenu::new("full_ctx_menu");
             menu.show(ui.ctx(), &response, |menu| {

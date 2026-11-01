@@ -118,10 +118,11 @@ fn test_date_day_of_week() {
 fn test_datepicker_renders() {
     let mut selected_date = None;
 
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let mut picker = DatePicker::new("test_picker");
-            picker.show(ctx, ui, &mut selected_date);
+            let ctx = ui.ctx().clone();
+            picker.show(&ctx, ui, &mut selected_date);
         });
     });
 
@@ -133,10 +134,11 @@ fn test_datepicker_renders() {
 fn test_datepicker_with_selection() {
     let mut selected_date = Date::new(2024, 6, 15);
 
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let mut picker = DatePicker::new("test_picker");
-            picker.show(ctx, ui, &mut selected_date);
+            let ctx = ui.ctx().clone();
+            picker.show(&ctx, ui, &mut selected_date);
         });
     });
 
@@ -148,10 +150,11 @@ fn test_datepicker_with_selection() {
 fn test_datepicker_with_label() {
     let mut selected_date = None;
 
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let mut picker = DatePicker::new("labeled_picker").label("Birth Date");
-            picker.show(ctx, ui, &mut selected_date);
+            let ctx = ui.ctx().clone();
+            picker.show(&ctx, ui, &mut selected_date);
         });
     });
 
@@ -163,10 +166,11 @@ fn test_datepicker_with_label() {
 fn test_datepicker_with_placeholder() {
     let mut selected_date = None;
 
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let mut picker = DatePicker::new("placeholder_picker").placeholder("Choose a date...");
-            picker.show(ctx, ui, &mut selected_date);
+            let ctx = ui.ctx().clone();
+            picker.show(&ctx, ui, &mut selected_date);
         });
     });
 
@@ -178,10 +182,11 @@ fn test_datepicker_with_placeholder() {
 fn test_datepicker_light_theme() {
     let mut selected_date = None;
 
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let mut picker = DatePicker::new("light_picker");
-            picker.show(ctx, ui, &mut selected_date);
+            let ctx = ui.ctx().clone();
+            picker.show(&ctx, ui, &mut selected_date);
         });
     });
 
@@ -193,12 +198,13 @@ fn test_datepicker_light_theme() {
 fn test_datepicker_full_config() {
     let mut selected_date = Date::new(2024, 12, 25);
 
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let mut picker = DatePicker::new("full_picker")
                 .label("Event Date")
                 .placeholder("Select event date...");
-            picker.show(ctx, ui, &mut selected_date);
+            let ctx = ui.ctx().clone();
+            picker.show(&ctx, ui, &mut selected_date);
         });
     });
 
@@ -211,16 +217,18 @@ fn test_multiple_datepickers() {
     let mut start_date = None;
     let mut end_date = None;
 
-    let mut harness = Harness::new(|ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    let mut harness = Harness::new_ui(|ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             ui.vertical(|ui| {
                 let mut start_picker = DatePicker::new("start_picker").label("Start Date");
-                start_picker.show(ctx, ui, &mut start_date);
+                let ctx = ui.ctx().clone();
+                start_picker.show(&ctx, ui, &mut start_date);
 
                 ui.add_space(8.0);
 
                 let mut end_picker = DatePicker::new("end_picker").label("End Date");
-                end_picker.show(ctx, ui, &mut end_date);
+                let ctx = ui.ctx().clone();
+                end_picker.show(&ctx, ui, &mut end_date);
             });
         });
     });

@@ -9,10 +9,10 @@ use egui_kittest::Harness;
 fn test_dialog_renders_open() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("test_dialog").title("Test Dialog").open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("Dialog content");
         });
     });
@@ -25,10 +25,10 @@ fn test_dialog_renders_open() {
 fn test_dialog_closed() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("test_dialog").title("Test Dialog").open(false);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("Dialog content");
         });
     });
@@ -41,13 +41,13 @@ fn test_dialog_closed() {
 fn test_dialog_size_small() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("small_dialog")
             .title("Small Dialog")
             .size(DialogSize::Small)
             .open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("Small content");
         });
     });
@@ -60,13 +60,13 @@ fn test_dialog_size_small() {
 fn test_dialog_size_medium() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("medium_dialog")
             .title("Medium Dialog")
             .size(DialogSize::Medium)
             .open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("Medium content");
         });
     });
@@ -79,13 +79,13 @@ fn test_dialog_size_medium() {
 fn test_dialog_size_large() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("large_dialog")
             .title("Large Dialog")
             .size(DialogSize::Large)
             .open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("Large content");
         });
     });
@@ -98,13 +98,13 @@ fn test_dialog_size_large() {
 fn test_dialog_size_custom() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("custom_dialog")
             .title("Custom Dialog")
             .size(DialogSize::Custom(500.0))
             .open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("Custom size content");
         });
     });
@@ -117,10 +117,10 @@ fn test_dialog_size_custom() {
 fn test_dialog_no_title() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("no_title_dialog").open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("Content without title bar");
         });
     });
@@ -133,13 +133,13 @@ fn test_dialog_no_title() {
 fn test_dialog_not_closable() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("not_closable")
             .title("Cannot Close")
             .closable(false)
             .open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("This dialog cannot be closed with ESC or backdrop click");
         });
     });
@@ -152,13 +152,13 @@ fn test_dialog_not_closable() {
 fn test_dialog_with_description() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("desc_dialog")
             .title("Dialog Title")
             .description("This is a description that explains the dialog purpose.")
             .open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("Content goes here");
         });
     });
@@ -171,13 +171,13 @@ fn test_dialog_with_description() {
 fn test_dialog_complex_content() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("complex_dialog")
             .title("Form Dialog")
             .size(DialogSize::Medium)
             .open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.vertical(|ui| {
                 ui.label("Please fill out the form:");
                 ui.add_space(8.0);
@@ -207,12 +207,12 @@ fn test_dialog_complex_content() {
 fn test_dialog_light_theme() {
     let theme = Theme::light();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog = Dialog::new("light_dialog")
             .title("Light Theme Dialog")
             .open(true);
 
-        dialog.show(ctx, &theme, |ui| {
+        dialog.show(ui.ctx(), &theme, |ui| {
             ui.label("Light theme content");
         });
     });
@@ -225,16 +225,16 @@ fn test_dialog_light_theme() {
 fn test_dialog_stacking() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut dialog1 = Dialog::new("dialog1").title("First Dialog").open(true);
 
-        dialog1.show(ctx, &theme, |ui| {
+        dialog1.show(ui.ctx(), &theme, |ui| {
             ui.label("First dialog content");
         });
 
         let mut dialog2 = Dialog::new("dialog2").title("Second Dialog").open(true);
 
-        dialog2.show(ctx, &theme, |ui| {
+        dialog2.show(ui.ctx(), &theme, |ui| {
             ui.label("Second dialog content (on top)");
         });
     });

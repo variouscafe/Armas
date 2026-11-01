@@ -464,7 +464,7 @@ impl MPEKeyboard {
         let (_, sense_response) = ui.allocate_exact_size(sense_size, Sense::hover());
 
         if sense_response.hovered() {
-            let scroll_delta = ui.ctx().input(|i| i.raw_scroll_delta);
+            let scroll_delta = ui.ctx().input(|i| i.smooth_scroll_delta);
             let amount = if layout.is_horizontal {
                 scroll_delta.x
             } else {

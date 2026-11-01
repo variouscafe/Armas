@@ -9,10 +9,10 @@ use egui_kittest::Harness;
 fn test_sheet_renders_open() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("test_sheet").title("Test Sheet").open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Sheet content");
         });
     });
@@ -25,10 +25,10 @@ fn test_sheet_renders_open() {
 fn test_sheet_closed() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("test_sheet").title("Test Sheet").open(false);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Sheet content");
         });
     });
@@ -41,13 +41,13 @@ fn test_sheet_closed() {
 fn test_sheet_side_left() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("left_sheet")
             .title("Left Sheet")
             .side(SheetSide::Left)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Left side content");
         });
     });
@@ -60,13 +60,13 @@ fn test_sheet_side_left() {
 fn test_sheet_side_right() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("right_sheet")
             .title("Right Sheet")
             .side(SheetSide::Right)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Right side content");
         });
     });
@@ -79,13 +79,13 @@ fn test_sheet_side_right() {
 fn test_sheet_side_top() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("top_sheet")
             .title("Top Sheet")
             .side(SheetSide::Top)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Top content");
         });
     });
@@ -98,13 +98,13 @@ fn test_sheet_side_top() {
 fn test_sheet_side_bottom() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("bottom_sheet")
             .title("Bottom Sheet")
             .side(SheetSide::Bottom)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Bottom content");
         });
     });
@@ -117,13 +117,13 @@ fn test_sheet_side_bottom() {
 fn test_sheet_size_small() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("small_sheet")
             .title("Small")
             .size(SheetSize::Small)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Small sheet");
         });
     });
@@ -136,13 +136,13 @@ fn test_sheet_size_small() {
 fn test_sheet_size_medium() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("medium_sheet")
             .title("Medium")
             .size(SheetSize::Medium)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Medium sheet");
         });
     });
@@ -155,13 +155,13 @@ fn test_sheet_size_medium() {
 fn test_sheet_size_large() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("large_sheet")
             .title("Large")
             .size(SheetSize::Large)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Large sheet");
         });
     });
@@ -174,13 +174,13 @@ fn test_sheet_size_large() {
 fn test_sheet_size_custom() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("custom_sheet")
             .title("Custom Size")
             .size(SheetSize::Custom(450.0))
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Custom 450px sheet");
         });
     });
@@ -193,10 +193,10 @@ fn test_sheet_size_custom() {
 fn test_sheet_no_title() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("no_title_sheet").open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Content without title");
         });
     });
@@ -209,13 +209,13 @@ fn test_sheet_no_title() {
 fn test_sheet_with_description() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("desc_sheet")
             .title("Edit Profile")
             .description("Make changes to your profile here.")
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("Profile content");
         });
     });
@@ -228,13 +228,13 @@ fn test_sheet_with_description() {
 fn test_sheet_no_close_button() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("no_close")
             .title("Cannot Close")
             .show_close_button(false)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("This sheet has no close button");
         });
     });
@@ -247,13 +247,13 @@ fn test_sheet_no_close_button() {
 fn test_sheet_no_backdrop() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("no_backdrop")
             .title("No Backdrop")
             .show_backdrop(false)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.label("No backdrop behind");
         });
     });
@@ -266,14 +266,14 @@ fn test_sheet_no_backdrop() {
 fn test_sheet_navigation_content() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("nav_sheet")
             .title("Navigation")
             .side(SheetSide::Left)
             .size(SheetSize::Small)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.vertical(|ui| {
                 ui.heading("Menu");
                 ui.separator();
@@ -298,7 +298,7 @@ fn test_sheet_navigation_content() {
 fn test_sheet_settings_content() {
     let theme = Theme::dark();
 
-    let mut harness = Harness::new(|ctx| {
+    let mut harness = Harness::new_ui(|ui| {
         let mut sheet = Sheet::new("settings_sheet")
             .title("Settings")
             .description("Configure your preferences")
@@ -306,7 +306,7 @@ fn test_sheet_settings_content() {
             .size(SheetSize::Medium)
             .open(true);
 
-        sheet.show(ctx, &theme, |ui| {
+        sheet.show(ui.ctx(), &theme, |ui| {
             ui.vertical(|ui| {
                 let mut enabled = true;
                 Switch::new().label("Dark Mode").show(ui, &mut enabled);

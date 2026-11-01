@@ -559,7 +559,7 @@ impl<'a> DrumSequencer<'a> {
 
         // Handle scroll wheel input
         if response.hovered() {
-            let scroll_delta = ui.ctx().input(|i| i.raw_scroll_delta);
+            let scroll_delta = ui.ctx().input(|i| i.smooth_scroll_delta);
             if scroll_delta.length() > 0.0 {
                 if momentum_scrolling {
                     // Add to velocity for momentum

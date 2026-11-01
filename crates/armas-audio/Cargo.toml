@@ -16,7 +16,7 @@ egui = "0.36"
 armas-basic = { version = "0.2.0", path = "../armas-basic" }
 
 [dev-dependencies]
-egui_kittest = { version = "0.33", features = ["wgpu", "snapshot"] }
+egui_kittest = { version = "0.36", features = ["wgpu", "snapshot"] }
 
 [lints]
 workspace = true
