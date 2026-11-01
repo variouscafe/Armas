@@ -98,11 +98,13 @@ type Page = (&'static str, PageShowFn);
 
 struct ShowcaseApp {
     theme: AppTheme,
-    /// Last egui mode the app is styled for. Until the user pins a theme
-    /// with a manual toggle the app follows the system theme, which on wasm
-    /// only reaches egui AFTER `new` returns (eframe applies the browser
-    /// theme on the first pass) and can change at runtime (OS theme switch),
-    /// so `ui` watches the mode and re-styles when it moves.
+    /// Last egui mode seen by the system-follow branch of `ui`. Until the
+    /// user pins a theme with a manual toggle the app follows the system
+    /// theme, which on wasm only reaches egui AFTER `new` returns (eframe
+    /// applies the browser theme on the first pass) and can change at
+    /// runtime (OS theme switch), so `ui` watches the mode and re-styles
+    /// when it moves. Goes stale while pinned — an unpin path would have to
+    /// re-sync this before the follow guard reads it.
     last_mode: egui::Theme,
     /// Set by the first manual toggle: from then on the user's choice wins
     /// over the system theme.
@@ -211,12 +213,13 @@ impl ShowcaseApp {
         Self::apply_egui_style(ctx, theme);
     }
 
-    /// Tint the egui styles with the armas theme background. Called from
-    /// `new` and `toggle_theme` only — the style only changes when the theme
-    /// does. Both modes are tinted in place (`all_styles_mut`) so a runtime
-    /// mode switch (eframe applies the wasm system theme after `new`, the
-    /// prefers-color-scheme listener and native `ThemeChanged` fire later)
-    /// can never activate an untinted style.
+    /// Tint the egui styles with the armas theme background. Called via
+    /// [`Self::apply_theme`] whenever the effective theme changes: `new`, a
+    /// manual toggle, or the system-follow branch in `ui`. Both modes are
+    /// tinted in place (`all_styles_mut`) so a runtime mode switch (eframe
+    /// applies the wasm system theme after `new`, the prefers-color-scheme
+    /// listener and native `ThemeChanged` fire later) can never activate an
+    /// untinted style.
     fn apply_egui_style(ctx: &egui::Context, theme: &AppTheme) {
         let bg = theme.theme().background();
         ctx.all_styles_mut(|style| {
