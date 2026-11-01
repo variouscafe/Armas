@@ -114,6 +114,7 @@ impl ShowcaseApp {
 
         Self::setup_fonts(&cc.egui_ctx);
         cc.egui_ctx.set_armas_theme(theme.theme().clone());
+        Self::apply_egui_style(&cc.egui_ctx, &theme);
 
         // Parse URL and set initial page
         let page_state = Self::page_from_url();
@@ -175,6 +176,21 @@ impl ShowcaseApp {
     fn toggle_theme(&mut self, ctx: &egui::Context) {
         self.theme = self.theme.toggle();
         ctx.set_armas_theme(self.theme.theme().clone());
+        Self::apply_egui_style(ctx, &self.theme);
+    }
+
+    /// Tint the egui style with the armas theme background. Called from
+    /// `new` and `toggle_theme` only — the style only changes when the theme
+    /// does, and rewriting it every frame needlessly invalidates style
+    /// caches and allocates.
+    fn apply_egui_style(ctx: &egui::Context, theme: &AppTheme) {
+        let mode = ctx.theme();
+        let mut style = (*ctx.style_of(mode)).clone();
+        let bg = theme.theme().background();
+        style.visuals.panel_fill = bg;
+        style.visuals.window_fill = bg;
+        style.visuals.extreme_bg_color = bg;
+        ctx.set_style_of(mode, style);
     }
 
     fn open_url(url: &str) {
@@ -206,18 +222,6 @@ impl eframe::App for ShowcaseApp {
             }
         }
 
-        // Apply theme
-        {
-            let ctx = ui.ctx();
-            let theme = ctx.theme();
-            let mut style = (*ctx.style_of(theme)).clone();
-            let bg = self.theme.theme().background();
-            style.visuals.panel_fill = bg;
-            style.visuals.window_fill = bg;
-            style.visuals.extreme_bg_color = bg;
-            ctx.set_style_of(theme, style);
-        }
-
         egui::CentralPanel::default().show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
 
@@ -239,7 +243,13 @@ impl eframe::App for ShowcaseApp {
             }
         });
 
-        ui.ctx().request_repaint();
+        // Back/forward navigation doesn't produce egui input, so the wasm
+        // shell still needs frames to re-sync the page from the URL — ask
+        // for one every 100ms. Native needs nothing: egui repaints on input
+        // and every animated component requests repaints itself.
+        #[cfg(target_arch = "wasm32")]
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(100));
     }
 }
 
