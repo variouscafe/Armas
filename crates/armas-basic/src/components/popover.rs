@@ -2,6 +2,7 @@
 //!
 //! Floating panels anchored to elements.
 
+use super::{sanitize_opt_width, sanitize_width};
 use crate::{Card, CardVariant, Theme};
 use egui::{pos2, vec2, Color32, Id, Pos2, Rect, Ui, Vec2};
 
@@ -176,34 +177,21 @@ impl Popover {
         self
     }
 
-    /// Set a fixed width
+    /// Set a fixed width (finite positive; garbage such as NaN counts as
+    /// unset and the auto width applies)
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
+        self.width = sanitize_opt_width(Some(width));
         self
     }
 
-    /// Set maximum width (positive values pass through — `f32::INFINITY`
-    /// disables the cap; garbage such as NaN falls back to the 400pt default)
+    /// Set maximum width (finite positive; garbage such as NaN falls back
+    /// to the 400pt default; a large finite value like `f32::MAX` means
+    /// "no cap")
     #[must_use]
     pub const fn max_width(mut self, max_width: f32) -> Self {
-        self.max_width = max_width;
+        self.max_width = sanitize_width(max_width, DEFAULT_MAX_WIDTH);
         self
-    }
-
-    /// Sanitized explicit width: garbage (NaN, zero, negative) counts as unset.
-    fn sanitized_width(&self) -> Option<f32> {
-        self.width.filter(|w| *w > 0.0)
-    }
-
-    /// Sanitized cap: garbage falls back to the default, positive values
-    /// (including +inf, "no cap") pass through.
-    fn sanitized_max_width(&self) -> f32 {
-        if self.max_width > 0.0 {
-            self.max_width
-        } else {
-            DEFAULT_MAX_WIDTH
-        }
     }
 
     /// Set custom inner padding (overrides style default)
@@ -298,9 +286,9 @@ impl Popover {
 
     fn calculate_popover_position(&self, anchor_rect: Rect, position: PopoverPosition) -> Pos2 {
         let spacing = self.offset.length();
-        let estimated_width = self
-            .sanitized_width()
-            .unwrap_or_else(|| self.sanitized_max_width());
+        // Knobs are sanitized at the builder boundary, so both fields are
+        // always finite positives — safe for position arithmetic.
+        let estimated_width = self.width.unwrap_or(self.max_width);
 
         match position {
             PopoverPosition::Top => pos2(
@@ -394,8 +382,8 @@ impl Popover {
             .fixed_pos(popover_pos)
             .show(ctx, |ui| {
                 let content_width = self
-                    .sanitized_width()
-                    .unwrap_or_else(|| ui.available_width().min(self.sanitized_max_width()));
+                    .width
+                    .unwrap_or_else(|| ui.available_width().min(self.max_width));
 
                 ui.set_max_width(content_width);
 
@@ -446,4 +434,33 @@ fn blend_with_card(theme: &Theme, base: Color32) -> (Color32, Color32) {
         255,
     );
     (blended, base)
+}
+
+#[cfg(test)]
+mod width_knob_tests {
+    use super::*;
+
+    /// Knobs are sanitized at the builder boundary, so every use site
+    /// (position estimator, content sizing) only ever sees finite positives.
+    #[test]
+    fn garbage_knobs_are_sanitized_at_the_boundary() {
+        assert_eq!(
+            Popover::new("t").max_width(f32::NAN).max_width,
+            DEFAULT_MAX_WIDTH
+        );
+        assert_eq!(
+            Popover::new("t").max_width(f32::INFINITY).max_width,
+            DEFAULT_MAX_WIDTH
+        );
+        assert_eq!(
+            Popover::new("t").max_width(-4.0).max_width,
+            DEFAULT_MAX_WIDTH
+        );
+        assert_eq!(Popover::new("t").max_width(500.0).max_width, 500.0);
+
+        assert!(Popover::new("t").width(f32::NAN).width.is_none());
+        assert!(Popover::new("t").width(f32::INFINITY).width.is_none());
+        assert!(Popover::new("t").width(0.0).width.is_none());
+        assert_eq!(Popover::new("t").width(320.0).width, Some(320.0));
+    }
 }

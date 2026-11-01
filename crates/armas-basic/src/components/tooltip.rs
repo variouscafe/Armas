@@ -3,6 +3,7 @@
 //! Contextual help tooltips styled like shadcn/ui Tooltip.
 //! Appears on hover with configurable delay and position.
 
+use super::sanitize_width;
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, FontId, Rect, Response, Shape, Stroke, Ui, Vec2};
 
@@ -13,6 +14,10 @@ const PADDING_Y: f32 = 6.0; // py-1.5
                             // Font size resolved from theme.typography.sm at show-time
 const ARROW_SIZE: f32 = 5.0; // size-2.5 (10px / 2 for triangle)
 const DEFAULT_MAX_WIDTH: f32 = 300.0;
+// The knob is the TOTAL width including the horizontal padding, so anything
+// below the padding itself leaves a negative wrap width (epaint then wraps
+// after every glyph). Floor it to padding + 1pt of text room.
+const MIN_TOTAL_WIDTH: f32 = 2.0 * PADDING_X + 1.0;
 
 /// Tooltip position relative to the target
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,12 +72,18 @@ impl Tooltip {
         self
     }
 
-    /// Set maximum width for text wrapping (positive values pass through —
-    /// `f32::INFINITY` disables wrapping; garbage such as NaN falls back to
-    /// the 300pt default)
+    /// Set maximum width for text wrapping, including the horizontal
+    /// padding (finite positive; garbage such as NaN falls back to the 300pt
+    /// default; a large finite value like `f32::MAX` disables wrapping;
+    /// values below the padding floor are raised to it)
     #[must_use]
     pub const fn max_width(mut self, width: f32) -> Self {
-        self.max_width = width;
+        let sanitized = sanitize_width(width, DEFAULT_MAX_WIDTH);
+        self.max_width = if sanitized > MIN_TOTAL_WIDTH {
+            sanitized
+        } else {
+            MIN_TOTAL_WIDTH
+        };
         self
     }
 
@@ -133,19 +144,13 @@ impl Tooltip {
         let bg_color = theme.foreground();
         let text_color = theme.background();
 
-        // Sanitized wrap width: garbage (NaN, zero, negative) falls back to
-        // the default; +inf keeps meaning "no wrap limit".
-        let max_width = if self.max_width > 0.0 {
-            self.max_width
-        } else {
-            DEFAULT_MAX_WIDTH
-        };
-
+        // The knob is sanitized at the builder boundary (finite positive,
+        // at least MIN_TOTAL_WIDTH), so the wrap width is always ≥ 1pt.
         let text_galley = ui.painter().layout(
             self.text.clone(),
             font_id,
             text_color,
-            max_width - padding.x * 2.0,
+            self.max_width - padding.x * 2.0,
         );
 
         let text_size = text_galley.size();
@@ -351,3 +356,23 @@ pub fn tooltip_with(
 pub type TooltipStyle = ();
 #[doc(hidden)]
 pub type TooltipColor = ();
+
+#[cfg(test)]
+mod width_knob_tests {
+    use super::*;
+
+    #[test]
+    fn garbage_and_tiny_caps_are_sanitized_at_the_boundary() {
+        assert_eq!(
+            Tooltip::new("t").max_width(f32::NAN).max_width,
+            DEFAULT_MAX_WIDTH
+        );
+        assert_eq!(
+            Tooltip::new("t").max_width(f32::INFINITY).max_width,
+            DEFAULT_MAX_WIDTH
+        );
+        // Below the padding floor → raised, never a negative wrap width
+        assert_eq!(Tooltip::new("t").max_width(10.0).max_width, MIN_TOTAL_WIDTH);
+        assert_eq!(Tooltip::new("t").max_width(400.0).max_width, 400.0);
+    }
+}

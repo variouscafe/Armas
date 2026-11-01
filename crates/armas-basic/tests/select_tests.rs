@@ -395,11 +395,14 @@ fn test_select_nan_cap_falls_back_to_default() {
 
 /// `f32::INFINITY` keeps meaning "no cap": the trigger tracks the full
 /// available width
+/// A large finite cap (`f32::MAX`) means "no cap": the trigger tracks the
+/// full available width. ±∞ is garbage and falls back to the default —
+/// infinite knobs poison finite arithmetic at use sites.
 #[test]
-fn test_select_infinite_cap_means_no_cap() {
+fn test_select_large_finite_cap_means_no_cap() {
     let options = vec![SelectOption::new("1", "Option 1")];
 
-    let mut select = Select::new(options).max_width(f32::INFINITY);
+    let mut select = Select::new(options).max_width(f32::MAX);
     let mut trigger_width = 0.0;
     let mut avail = 0.0;
 
@@ -416,5 +419,29 @@ fn test_select_infinite_cap_means_no_cap() {
     assert!(
         (trigger_width - avail).abs() < 0.5,
         "expected the full available width ({avail}), got {trigger_width}"
+    );
+}
+
+/// A garbage explicit width (NaN) counts as unset: the auto width applies
+/// (280pt here) instead of collapsing to the 16pt floor
+#[test]
+fn test_select_nan_width_falls_back_to_auto() {
+    let options = vec![SelectOption::new("1", "Option 1")];
+
+    let mut select = Select::new(options).width(f32::NAN);
+    let mut trigger_width = 0.0;
+
+    {
+        let mut harness = Harness::new_ui(|ui| {
+            let response = select.show(ui);
+            trigger_width = response.response.rect.width();
+        });
+        harness.set_size(egui::vec2(600.0, 400.0));
+        harness.run();
+    }
+
+    assert!(
+        (trigger_width - 280.0).abs() < 0.5,
+        "expected ~280, got {trigger_width}"
     );
 }

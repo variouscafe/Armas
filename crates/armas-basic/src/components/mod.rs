@@ -97,3 +97,50 @@ pub use tree_view::{TreeItem, TreeView, TreeViewResponse};
 // Backwards compatibility aliases
 #[doc(hidden)]
 pub use tree_view::{Browser, BrowserItem, BrowserResponse};
+
+// ============================================================================
+// Shared width-knob policy
+// ============================================================================
+
+/// Width knobs accept finite positive values; anything else (NaN, ±∞, zero,
+/// negative — e.g. derived from an unmeasured container) falls back to
+/// `default`. "No cap" is a large *finite* value (`f32::MAX`): an infinite
+/// knob poisons finite arithmetic at use sites (offscreen anchors, infinite
+/// allocations).
+pub(crate) const fn sanitize_width(raw: f32, default: f32) -> f32 {
+    if raw.is_finite() && raw > 0.0 {
+        raw
+    } else {
+        default
+    }
+}
+
+/// [`sanitize_width`] for explicit-width knobs: garbage counts as unset.
+pub(crate) const fn sanitize_opt_width(raw: Option<f32>) -> Option<f32> {
+    match raw {
+        Some(w) if w.is_finite() && w > 0.0 => Some(w),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod sanitize_tests {
+    use super::*;
+
+    #[test]
+    fn finite_positive_passes_through() {
+        assert_eq!(sanitize_width(150.0, 280.0), 150.0);
+        assert_eq!(sanitize_opt_width(Some(150.0)), Some(150.0));
+    }
+
+    #[test]
+    fn garbage_falls_back() {
+        for garbage in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -5.0] {
+            assert_eq!(sanitize_width(garbage, 280.0), 280.0);
+        }
+        assert_eq!(sanitize_opt_width(Some(f32::NAN)), None);
+        assert_eq!(sanitize_opt_width(Some(f32::INFINITY)), None);
+        assert_eq!(sanitize_opt_width(Some(0.0)), None);
+        assert_eq!(sanitize_opt_width(None), None);
+    }
+}
