@@ -279,13 +279,21 @@ impl Select {
         // constant block for why a cap exists), floored at `MIN_WIDTH` so
         // the dropdown's `width - 16` subtractions stay non-negative.
         // Explicit `.width()` overrides the auto value but is still floored.
+        // A non-finite cap (e.g. derived from an unmeasured container)
+        // falls back to the default — f32::min ignores NaN, which would
+        // otherwise silently disable the cap entirely.
+        let cap = if self.max_width.is_finite() {
+            self.max_width
+        } else {
+            AUTO_WIDTH_MAX
+        };
         let width = self
             .width
             .unwrap_or_else(|| {
                 if avail.is_finite() {
-                    avail.min(self.max_width)
+                    avail.min(cap)
                 } else {
-                    AUTO_WIDTH_FALLBACK
+                    AUTO_WIDTH_FALLBACK.min(cap)
                 }
             })
             .max(MIN_WIDTH);
