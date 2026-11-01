@@ -135,12 +135,60 @@ impl ThemeSource {
             Self::Dark => ThemeToggleIcon::System,
         }
     }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+
+    fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "system" => Some(Self::System),
+            "light" => Some(Self::Light),
+            "dark" => Some(Self::Dark),
+            _ => None,
+        }
+    }
 }
+
+/// eframe storage key for the persisted theme source (a file on native,
+/// localStorage on wasm — eframe provides both behind the same API).
+const THEME_KEY: &str = "theme_source";
 
 impl ShowcaseApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let mode = cc.egui_ctx.theme();
-        let theme = Self::theme_for_mode(mode);
+        // Restore the persisted theme source, defaulting to System.
+        let theme_source = cc
+            .storage
+            .and_then(|s| s.get_string(THEME_KEY))
+            .as_deref()
+            .and_then(ThemeSource::parse)
+            .unwrap_or(ThemeSource::System);
+
+        let (mode, theme) = match theme_source {
+            ThemeSource::System => {
+                let mode = cc.egui_ctx.theme();
+                (mode, Self::theme_for_mode(mode))
+            }
+            source => {
+                let theme = if source == ThemeSource::Light {
+                    AppTheme::light()
+                } else {
+                    AppTheme::dark()
+                };
+                // A restored pin also drives the egui preference so the
+                // mode and the tint agree from the first frame.
+                cc.egui_ctx.set_theme(if theme.is_dark() {
+                    egui::ThemePreference::Dark
+                } else {
+                    egui::ThemePreference::Light
+                });
+                (cc.egui_ctx.theme(), theme)
+            }
+        };
 
         Self::setup_fonts(&cc.egui_ctx);
         Self::apply_theme(&theme, &cc.egui_ctx);
@@ -151,7 +199,7 @@ impl ShowcaseApp {
         Self {
             theme,
             last_mode: mode,
-            theme_source: ThemeSource::System,
+            theme_source,
             search_text: String::new(),
             page_state,
             sidebar_open: false,
@@ -342,6 +390,12 @@ impl eframe::App for ShowcaseApp {
         #[cfg(target_arch = "wasm32")]
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(100));
+    }
+
+    /// Persist the theme source (a file on native, localStorage on wasm —
+    /// eframe calls this on autosave and on exit).
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        storage.set_string(THEME_KEY, self.theme_source.as_str().to_owned());
     }
 }
 
