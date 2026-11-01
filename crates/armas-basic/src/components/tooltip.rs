@@ -161,16 +161,14 @@ impl Tooltip {
             4.0
         };
 
-        // Determine position
+        // Determine position — the flip decision and the rect clamp must
+        // agree on one geometry source (the viewport), or a clamp can undo
+        // a flip the flip logic just made.
         let target_rect = target_response.rect;
-        let position = self.determine_position(ui, target_rect, tooltip_size, arrow_offset);
-        let tooltip_rect = self.calculate_tooltip_rect(
-            target_rect,
-            tooltip_size,
-            arrow_offset,
-            position,
-            ui.ctx().viewport_rect(),
-        );
+        let screen = ui.ctx().viewport_rect();
+        let position = self.determine_position(screen, target_rect, tooltip_size, arrow_offset);
+        let tooltip_rect =
+            self.calculate_tooltip_rect(target_rect, tooltip_size, arrow_offset, position, screen);
 
         // Draw tooltip as an overlay (above everything else)
         let layer_id = egui::LayerId::new(
@@ -196,7 +194,7 @@ impl Tooltip {
     /// Determine the best position for the tooltip
     fn determine_position(
         &self,
-        ui: &Ui,
+        screen: Rect,
         target_rect: Rect,
         tooltip_size: Vec2,
         arrow_offset: f32,
@@ -205,7 +203,7 @@ impl Tooltip {
             return pos;
         }
 
-        let screen_rect = ui.clip_rect();
+        let screen_rect = screen;
         let spacing = arrow_offset;
 
         // Check available space in each direction
@@ -280,37 +278,54 @@ impl Tooltip {
         &self,
         painter: &egui::Painter,
         bg_color: Color32,
-        _target_rect: Rect,
+        target_rect: Rect,
         tooltip_rect: Rect,
         position: TooltipPosition,
     ) {
         let size = ARROW_SIZE;
 
+        // Anchor the arrow to the target, not the rect center: the rect may
+        // be viewport-clamped away from the target, and a center-anchored
+        // arrow would then point at empty space. Clamp the target axis into
+        // the rect so the arrow always sits on the tooltip edge.
+        let margin = size + 1.0;
+        let clamp_axis = |v: f32, lo: f32, hi: f32| v.clamp(lo.min(hi), lo.max(hi));
+        let arrow_x = clamp_axis(
+            target_rect.center().x,
+            tooltip_rect.left() + margin,
+            tooltip_rect.right() - margin,
+        );
+        let arrow_y = clamp_axis(
+            target_rect.center().y,
+            tooltip_rect.top() + margin,
+            tooltip_rect.bottom() - margin,
+        );
+
         let (tip, base1, base2) = match position {
             TooltipPosition::Top => {
                 // Arrow points down (at bottom of tooltip)
-                let tip = pos2(tooltip_rect.center().x, tooltip_rect.bottom() + size);
+                let tip = pos2(arrow_x, tooltip_rect.bottom() + size);
                 let base1 = pos2(tip.x - size, tooltip_rect.bottom());
                 let base2 = pos2(tip.x + size, tooltip_rect.bottom());
                 (tip, base1, base2)
             }
             TooltipPosition::Bottom => {
                 // Arrow points up (at top of tooltip)
-                let tip = pos2(tooltip_rect.center().x, tooltip_rect.top() - size);
+                let tip = pos2(arrow_x, tooltip_rect.top() - size);
                 let base1 = pos2(tip.x - size, tooltip_rect.top());
                 let base2 = pos2(tip.x + size, tooltip_rect.top());
                 (tip, base1, base2)
             }
             TooltipPosition::Left => {
                 // Arrow points right (at right of tooltip)
-                let tip = pos2(tooltip_rect.right() + size, tooltip_rect.center().y);
+                let tip = pos2(tooltip_rect.right() + size, arrow_y);
                 let base1 = pos2(tooltip_rect.right(), tip.y - size);
                 let base2 = pos2(tooltip_rect.right(), tip.y + size);
                 (tip, base1, base2)
             }
             TooltipPosition::Right => {
                 // Arrow points left (at left of tooltip)
-                let tip = pos2(tooltip_rect.left() - size, tooltip_rect.center().y);
+                let tip = pos2(tooltip_rect.left() - size, arrow_y);
                 let base1 = pos2(tooltip_rect.left(), tip.y - size);
                 let base2 = pos2(tooltip_rect.left(), tip.y + size);
                 (tip, base1, base2)

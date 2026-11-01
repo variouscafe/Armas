@@ -391,6 +391,9 @@ impl Popover {
         egui::Area::new(self.id)
             .order(egui::Order::Foreground)
             .fixed_pos(popover_pos)
+            // The initial guess above only avoids astronomical values; egui
+            // itself keeps the final laid-out rect inside the screen.
+            .constrain_to(ctx.viewport_rect())
             .show(ctx, |ui| {
                 let content_width = self
                     .width

@@ -4,6 +4,7 @@
 //! Toggle Group: A group of pressable toggle buttons for selection (shadcn/ui Toggle Group).
 
 use super::content::ContentContext;
+use super::sanitize_opt_width;
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, CornerRadius, Response, Sense, Stroke, Ui, Vec2};
 
@@ -140,7 +141,7 @@ impl Toggle {
     /// If not set, defaults to a square layout (width = height).
     #[must_use]
     pub const fn content_width(mut self, width: f32) -> Self {
-        self.custom_content_width = Some(width);
+        self.custom_content_width = sanitize_opt_width(width);
         self
     }
 
@@ -527,7 +528,7 @@ impl ToggleGroup {
     /// For text-based [`show`](Self::show), items auto-size to the widest label.
     #[must_use]
     pub const fn item_width(mut self, width: f32) -> Self {
-        self.item_width = Some(width);
+        self.item_width = sanitize_opt_width(width);
         self
     }
 

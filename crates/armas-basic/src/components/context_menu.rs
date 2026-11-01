@@ -22,6 +22,7 @@
 
 use super::dropdown_menu::{DropdownMenu, DropdownMenuResponse, MenuBuilder};
 use super::sanitize_width;
+const DEFAULT_WIDTH: f32 = 200.0;
 use egui::{Id, Rect, Response};
 
 /// Context menu response
@@ -50,14 +51,14 @@ impl ContextMenu {
     pub fn new(id: impl Into<Id>) -> Self {
         Self {
             id: id.into(),
-            width: 200.0,
+            width: DEFAULT_WIDTH,
         }
     }
 
     /// Set the menu width.
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
-        self.width = sanitize_width(width, 200.0);
+        self.width = sanitize_width(width, DEFAULT_WIDTH);
         self
     }
 

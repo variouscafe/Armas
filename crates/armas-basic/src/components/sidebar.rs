@@ -29,6 +29,7 @@
 //! # }
 //! ```
 
+use super::sanitize_opt_width;
 use crate::animation::SpringAnimation;
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
@@ -368,9 +369,15 @@ impl SidebarLayout {
         content_rect: Rect,
     ) -> Self {
         let content_width = current_width;
-        let expansion_ratio = ((content_width - collapsed_width)
-            / (expanded_width - collapsed_width))
-            .clamp(0.0, 1.0);
+        let denom = expanded_width - collapsed_width;
+        let expansion_ratio = if denom.abs() > f32::EPSILON {
+            ((content_width - collapsed_width) / denom).clamp(0.0, 1.0)
+        } else {
+            // Collapsed == expanded: the sidebar never visibly resizes;
+            // treat it as fully expanded (its resting state) so the icon
+            // positions can't be poisoned by a divide-by-zero ratio.
+            1.0
+        };
 
         let icon_left_aligned_x =
             content_rect.left() + ITEM_PADDING + ITEM_PADDING + ICON_SIZE / 2.0;
@@ -425,14 +432,14 @@ impl<'a> Sidebar<'a> {
     /// Set the collapsed width (default: 48px / 3rem)
     #[must_use]
     pub const fn collapsed_width(mut self, width: f32) -> Self {
-        self.collapsed_width = Some(width);
+        self.collapsed_width = sanitize_opt_width(width);
         self
     }
 
     /// Set the expanded width (default: 256px / 16rem)
     #[must_use]
     pub const fn expanded_width(mut self, width: f32) -> Self {
-        self.expanded_width = Some(width);
+        self.expanded_width = sanitize_opt_width(width);
         self
     }
 
