@@ -25,6 +25,16 @@ const CORNER_RADIUS: u8 = 6;
 const CORNER_RADIUS_SM: u8 = 4;
 const PADDING: f32 = 8.0;
 const ICON_WIDTH: f32 = 24.0;
+// Cap the auto width: defaulting to the full available width explodes layouts
+// when the Select sits inside a horizontal row (the row then demands the
+// whole parent width). 280pt keeps the shadcn auto feel.
+const AUTO_WIDTH_MAX: f32 = 280.0;
+// Fallback when the available width is unknown (infinite).
+const AUTO_WIDTH_FALLBACK: f32 = 200.0;
+// Dropdown content subtracts up to 16pt from the trigger width (search box,
+// separator, option rows); below this those subtractions would go negative
+// and trip egui's width asserts.
+const MIN_WIDTH: f32 = 16.0;
 
 // ============================================================================
 // SelectOption
@@ -184,7 +194,8 @@ impl Select {
         self
     }
 
-    /// Set the width of the select component
+    /// Set an explicit width in points, overriding the auto width
+    /// (available width capped at 280pt, 200pt fallback, 16pt floor).
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
@@ -252,17 +263,20 @@ impl Select {
     pub fn show(&mut self, ui: &mut Ui) -> SelectResponse {
         let theme = ui.ctx().armas_theme();
         let avail = ui.available_width();
-        // Cap the auto width: defaulting to the full available width explodes
-        // layouts when the Select sits inside a horizontal row (the row then
-        // demands the whole parent width). 280pt keeps the shadcn auto feel
-        // without the footgun; set `.width()` explicitly to override.
-        let width = self.width.unwrap_or_else(|| {
-            if avail.is_finite() {
-                avail.min(280.0)
-            } else {
-                200.0
-            }
-        });
+        // Auto width: available width capped at `AUTO_WIDTH_MAX` (see the
+        // constant block for why), floored at `MIN_WIDTH` so the dropdown's
+        // `width - 16` subtractions stay non-negative. Explicit `.width()`
+        // overrides the auto value but is still floored.
+        let width = self
+            .width
+            .unwrap_or_else(|| {
+                if avail.is_finite() {
+                    avail.min(AUTO_WIDTH_MAX)
+                } else {
+                    AUTO_WIDTH_FALLBACK
+                }
+            })
+            .max(MIN_WIDTH);
         let mut changed = false;
         let mut new_value = None;
 

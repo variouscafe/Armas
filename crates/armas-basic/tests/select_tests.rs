@@ -213,3 +213,54 @@ fn test_multiple_selects() {
 
     harness.run();
 }
+
+/// Auto width is capped at 280pt even when the available width is larger
+/// (911ca4e behaviour — pin it so a refactor can't silently drop the cap)
+#[test]
+fn test_select_auto_width_capped_at_280() {
+    let options = vec![SelectOption::new("1", "Option 1")];
+
+    let mut select = Select::new(options);
+    let mut trigger_width = 0.0;
+
+    {
+        let mut harness = Harness::new_ui(|ui| {
+            let response = select.show(ui);
+            trigger_width = response.response.rect.width();
+        });
+        harness.set_size(egui::vec2(600.0, 400.0));
+        harness.run();
+    }
+
+    assert!(
+        (trigger_width - 280.0).abs() < 0.5,
+        "expected ~280, got {trigger_width}"
+    );
+}
+
+/// Width is floored at 16pt when the available width is tiny, so the
+/// dropdown's `width - 16` subtractions can never go negative
+#[test]
+fn test_select_width_floored_when_avail_tiny() {
+    let options = vec![SelectOption::new("1", "Option 1")];
+
+    let mut select = Select::new(options);
+    let mut trigger_width = 0.0;
+
+    {
+        let mut harness = Harness::new_ui(|ui| {
+            // 5pt of horizontal room: below every subtraction in the dropdown
+            ui.allocate_ui(egui::vec2(5.0, 100.0), |ui| {
+                let response = select.show(ui);
+                trigger_width = response.response.rect.width();
+            });
+        });
+        harness.set_size(egui::vec2(600.0, 400.0));
+        harness.run();
+    }
+
+    assert!(
+        (trigger_width - 16.0).abs() < 0.5,
+        "expected ~16, got {trigger_width}"
+    );
+}
