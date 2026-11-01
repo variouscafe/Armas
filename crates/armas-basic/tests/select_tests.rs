@@ -264,3 +264,51 @@ fn test_select_width_floored_when_avail_tiny() {
         "expected ~16, got {trigger_width}"
     );
 }
+
+/// Opening the dropdown inside a tiny container runs the `width - 8` /
+/// `width - 16` subtractions at the 16pt floor — the paths that used to go
+/// negative and trip egui's width asserts. The trigger is clicked via raw
+/// pointer events because `is_open` has no public setter.
+#[test]
+fn test_select_dropdown_opens_in_tiny_container() {
+    let options = vec![SelectOption::new("1", "Option 1")];
+
+    let mut select = Select::new(options);
+
+    {
+        let mut harness = Harness::new_ui_state(
+            |ui, last| {
+                ui.allocate_ui(egui::vec2(5.0, 100.0), |ui| {
+                    let response = select.show(ui);
+                    *last = Some((response.response.rect, response.is_open));
+                });
+            },
+            None, // (trigger rect, is_open)
+        );
+        harness.set_size(egui::vec2(600.0, 400.0));
+        harness.run();
+
+        let (rect, _) = harness.state().expect("first frame ran");
+        let center = rect.center();
+        harness.hover_at(center);
+        harness.event(egui::Event::PointerButton {
+            pos: center,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::default(),
+        });
+        harness.event(egui::Event::PointerButton {
+            pos: center,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::default(),
+        });
+        harness.run_steps(2);
+
+        let (_, is_open) = harness.state().expect("post-click frame ran");
+        assert!(
+            is_open,
+            "dropdown should be open after clicking the trigger"
+        );
+    }
+}
