@@ -335,3 +335,86 @@ fn test_select_max_width_knob() {
         "expected ~150, got {trigger_width}"
     );
 }
+
+/// The 200pt fallback (unknown available width) is itself capped by
+/// `.max_width()`
+#[test]
+fn test_select_fallback_honors_max_width() {
+    let options = vec![SelectOption::new("1", "Option 1")];
+
+    let mut select = Select::new(options).max_width(150.0);
+    let mut trigger_width = 0.0;
+
+    {
+        let mut harness = Harness::new_ui(|ui| {
+            // A finite origin with an infinite extent gives the child an
+            // infinite available width (Rect::EVERYTHING would also move the
+            // cursor to -inf and poison every rect), exercising the fallback
+            let mut child =
+                ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_max(
+                    egui::pos2(0.0, 0.0),
+                    egui::pos2(f32::INFINITY, f32::INFINITY),
+                )));
+            let response = select.show(&mut child);
+            trigger_width = response.response.rect.width();
+        });
+        harness.set_size(egui::vec2(600.0, 400.0));
+        harness.run();
+    }
+
+    assert!(
+        (trigger_width - 150.0).abs() < 0.5,
+        "expected ~150, got {trigger_width}"
+    );
+}
+
+/// A garbage cap (NaN) falls back to the 280pt default instead of
+/// silently disabling the cap (`f32::min` ignores NaN and would return
+/// the full 600pt)
+#[test]
+fn test_select_nan_cap_falls_back_to_default() {
+    let options = vec![SelectOption::new("1", "Option 1")];
+
+    let mut select = Select::new(options).max_width(f32::NAN);
+    let mut trigger_width = 0.0;
+
+    {
+        let mut harness = Harness::new_ui(|ui| {
+            let response = select.show(ui);
+            trigger_width = response.response.rect.width();
+        });
+        harness.set_size(egui::vec2(600.0, 400.0));
+        harness.run();
+    }
+
+    assert!(
+        (trigger_width - 280.0).abs() < 0.5,
+        "expected ~280, got {trigger_width}"
+    );
+}
+
+/// `f32::INFINITY` keeps meaning "no cap": the trigger tracks the full
+/// available width
+#[test]
+fn test_select_infinite_cap_means_no_cap() {
+    let options = vec![SelectOption::new("1", "Option 1")];
+
+    let mut select = Select::new(options).max_width(f32::INFINITY);
+    let mut trigger_width = 0.0;
+    let mut avail = 0.0;
+
+    {
+        let mut harness = Harness::new_ui(|ui| {
+            avail = ui.available_width();
+            let response = select.show(ui);
+            trigger_width = response.response.rect.width();
+        });
+        harness.set_size(egui::vec2(600.0, 400.0));
+        harness.run();
+    }
+
+    assert!(
+        (trigger_width - avail).abs() < 0.5,
+        "expected the full available width ({avail}), got {trigger_width}"
+    );
+}

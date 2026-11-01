@@ -198,16 +198,19 @@ impl Select {
     }
 
     /// Set an explicit width in points, overriding the auto width
-    /// (available width capped at `.max_width()` — 280pt by default,
-    /// 200pt fallback, 16pt floor).
+    /// (available width capped at `.max_width()` — 280pt by default;
+    /// 200pt fallback when the available width is unknown, itself capped
+    /// by `.max_width()`; 16pt floor). A non-positive or NaN value is
+    /// ignored and the auto width applies.
     #[must_use]
     pub const fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
         self
     }
 
-    /// Set the cap for the auto width (default 280pt). Ignored when an
-    /// explicit `.width()` is set. Mirrors `Popover::max_width`.
+    /// Set the cap for the auto width (default 280pt; `f32::INFINITY`
+    /// disables the cap; garbage falls back to the default). Ignored when
+    /// an explicit `.width()` is set. Mirrors `Popover::max_width`.
     #[must_use]
     pub const fn max_width(mut self, max_width: f32) -> Self {
         self.max_width = max_width;
@@ -279,16 +282,19 @@ impl Select {
         // constant block for why a cap exists), floored at `MIN_WIDTH` so
         // the dropdown's `width - 16` subtractions stay non-negative.
         // Explicit `.width()` overrides the auto value but is still floored.
-        // A non-finite cap (e.g. derived from an unmeasured container)
-        // falls back to the default — f32::min ignores NaN, which would
-        // otherwise silently disable the cap entirely.
-        let cap = if self.max_width.is_finite() {
+        // Garbage caps (NaN, zero, negative — e.g. derived from an
+        // unmeasured container) fall back to the default: f32::min ignores
+        // NaN, which would otherwise silently disable the cap entirely.
+        // Positive values pass through, so f32::INFINITY keeps meaning
+        // "no cap" (`avail.min(inf)` = avail).
+        let cap = if self.max_width > 0.0 {
             self.max_width
         } else {
             AUTO_WIDTH_MAX
         };
         let width = self
             .width
+            .filter(|w| *w > 0.0)
             .unwrap_or_else(|| {
                 if avail.is_finite() {
                     avail.min(cap)

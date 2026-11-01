@@ -12,6 +12,7 @@ const PADDING_X: f32 = 12.0; // px-3
 const PADDING_Y: f32 = 6.0; // py-1.5
                             // Font size resolved from theme.typography.sm at show-time
 const ARROW_SIZE: f32 = 5.0; // size-2.5 (10px / 2 for triangle)
+const DEFAULT_MAX_WIDTH: f32 = 300.0;
 
 /// Tooltip position relative to the target
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +54,7 @@ impl Tooltip {
         Self {
             text: text.into(),
             position: None, // Auto by default
-            max_width: 300.0,
+            max_width: DEFAULT_MAX_WIDTH,
             delay_ms: 0, // shadcn default: no delay
             show_arrow: true,
         }
@@ -66,7 +67,9 @@ impl Tooltip {
         self
     }
 
-    /// Set maximum width for text wrapping
+    /// Set maximum width for text wrapping (positive values pass through —
+    /// `f32::INFINITY` disables wrapping; garbage such as NaN falls back to
+    /// the 300pt default)
     #[must_use]
     pub const fn max_width(mut self, width: f32) -> Self {
         self.max_width = width;
@@ -130,11 +133,19 @@ impl Tooltip {
         let bg_color = theme.foreground();
         let text_color = theme.background();
 
+        // Sanitized wrap width: garbage (NaN, zero, negative) falls back to
+        // the default; +inf keeps meaning "no wrap limit".
+        let max_width = if self.max_width > 0.0 {
+            self.max_width
+        } else {
+            DEFAULT_MAX_WIDTH
+        };
+
         let text_galley = ui.painter().layout(
             self.text.clone(),
             font_id,
             text_color,
-            self.max_width - padding.x * 2.0,
+            max_width - padding.x * 2.0,
         );
 
         let text_size = text_galley.size();

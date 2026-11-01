@@ -10,6 +10,7 @@ use egui::{pos2, vec2, Color32, Id, Pos2, Rect, Ui, Vec2};
 // ============================================================================
 
 const MIN_SPACE_FOR_POSITION: f32 = 50.0;
+const DEFAULT_MAX_WIDTH: f32 = 400.0;
 
 // ============================================================================
 // Enums
@@ -129,7 +130,7 @@ impl Popover {
             color: PopoverColor::default(),
             offset: vec2(0.0, 8.0),
             width: None,
-            max_width: 400.0,
+            max_width: DEFAULT_MAX_WIDTH,
             padding: None,
             external_is_open: None,
         }
@@ -182,11 +183,27 @@ impl Popover {
         self
     }
 
-    /// Set maximum width
+    /// Set maximum width (positive values pass through — `f32::INFINITY`
+    /// disables the cap; garbage such as NaN falls back to the 400pt default)
     #[must_use]
     pub const fn max_width(mut self, max_width: f32) -> Self {
         self.max_width = max_width;
         self
+    }
+
+    /// Sanitized explicit width: garbage (NaN, zero, negative) counts as unset.
+    fn sanitized_width(&self) -> Option<f32> {
+        self.width.filter(|w| *w > 0.0)
+    }
+
+    /// Sanitized cap: garbage falls back to the default, positive values
+    /// (including +inf, "no cap") pass through.
+    fn sanitized_max_width(&self) -> f32 {
+        if self.max_width > 0.0 {
+            self.max_width
+        } else {
+            DEFAULT_MAX_WIDTH
+        }
     }
 
     /// Set custom inner padding (overrides style default)
@@ -281,7 +298,9 @@ impl Popover {
 
     fn calculate_popover_position(&self, anchor_rect: Rect, position: PopoverPosition) -> Pos2 {
         let spacing = self.offset.length();
-        let estimated_width = self.width.unwrap_or(self.max_width);
+        let estimated_width = self
+            .sanitized_width()
+            .unwrap_or_else(|| self.sanitized_max_width());
 
         match position {
             PopoverPosition::Top => pos2(
@@ -375,8 +394,8 @@ impl Popover {
             .fixed_pos(popover_pos)
             .show(ctx, |ui| {
                 let content_width = self
-                    .width
-                    .unwrap_or_else(|| ui.available_width().min(self.max_width));
+                    .sanitized_width()
+                    .unwrap_or_else(|| ui.available_width().min(self.sanitized_max_width()));
 
                 ui.set_max_width(content_width);
 
