@@ -181,6 +181,43 @@ pub struct SpringAnimation {
     pub damping: f32,
 }
 
+/// Default stiffness — also the fallback for garbage `.params()` input
+const DEFAULT_STIFFNESS: f32 = 200.0;
+/// Default damping — also the fallback for garbage `.params()` input
+const DEFAULT_DAMPING: f32 = 20.0;
+/// `alpha * dt` at or beyond this decays to less than e^-80 of the
+/// amplitude — below f32 resolution of any animated value. Snap to the
+/// target instead of evaluating the map; the overdamped rate never
+/// exceeds `alpha`, so this also keeps `cosh`/`sinh` finite (they
+/// overflow past an argument of ~90).
+const SETTLED_DECAY: f32 = 80.0;
+/// Below this (rate * dt) both solution branches are arbitrarily close
+/// to the critically-damped one, whose closed form divides by nothing.
+const NEAR_CRITICAL: f32 = 1.0e-3;
+/// Frame gaps longer than an hour are clamped: the exact map makes this
+/// invisible except that it keeps every transcendental argument finite.
+const MAX_DT: f32 = 3600.0;
+
+/// Spring-parameter counterpart of the width-knob sanitizers: finite and
+/// positive passes, anything else falls back to the default.
+const fn sanitize_stiffness(raw: f32) -> f32 {
+    if raw.is_finite() && raw > 0.0 {
+        raw
+    } else {
+        DEFAULT_STIFFNESS
+    }
+}
+
+/// Damping is finite and non-negative (zero is the legal undamped
+/// oscillator); anything else falls back to the default.
+const fn sanitize_damping(raw: f32) -> f32 {
+    if raw.is_finite() && raw >= 0.0 {
+        raw
+    } else {
+        DEFAULT_DAMPING
+    }
+}
+
 impl SpringAnimation {
     /// Create a new spring animation
     #[must_use]
@@ -189,63 +226,96 @@ impl SpringAnimation {
             value: initial,
             velocity: 0.0,
             target,
-            stiffness: 200.0,
-            damping: 20.0,
+            stiffness: DEFAULT_STIFFNESS,
+            damping: DEFAULT_DAMPING,
         }
     }
 
     /// Set spring parameters
+    ///
+    /// Sanitized at this boundary like every width knob: stiffness must be
+    /// finite and positive, damping finite and non-negative — garbage
+    /// (NaN, infinity, wrong sign) falls back to that parameter's default
+    /// (200/20) rather than poisoning the simulation. Damping `0.0` stays
+    /// legal: it is the undamped oscillator.
     #[must_use]
     pub const fn params(mut self, stiffness: f32, damping: f32) -> Self {
-        self.stiffness = stiffness;
-        self.damping = damping;
+        self.stiffness = sanitize_stiffness(stiffness);
+        self.damping = sanitize_damping(damping);
         self
     }
 
-    /// Update the spring simulation using semi-implicit Euler integration,
-    /// sub-stepped to the stability bound of the current parameters.
+    /// Advance the simulation by `dt` seconds using the exact closed-form
+    /// solution of the damped harmonic oscillator.
     ///
-    /// Semi-implicit Euler is only conditionally stable (roughly
-    /// `dt < c/k` and `dt < 2/sqrt(k)`), so a global dt clamp cannot
-    /// guarantee stability for every stiffness — the checkbox spring
-    /// (k=2000, c=55) diverges at dt = 1/30. Any dt is therefore
-    /// sub-stepped into chunks below the parameter-derived bound. A
-    /// non-finite dt (whose NaN would pass through `clamp` and poison the
-    /// spring permanently) advances nothing.
+    /// The per-step map — oscillate by the discriminant rate times `dt`
+    /// (or its hyperbolic counterpart), then decay by `e^(-alpha*dt)`
+    /// with `alpha = damping / 2` — is exact, so it is unconditionally
+    /// stable for any `dt` and any sanitized parameters: no sub-stepping,
+    /// no dt clamp, and no stability bound that new parameters could
+    /// silently outgrow. One big step lands on the same trajectory as
+    /// many small ones.
+    ///
+    /// Three guards remain. A non-finite or non-positive `dt` advances
+    /// nothing. A step whose decay is visually zero (an `alpha*dt` of 80
+    /// or more, which is also where the hyperbolic terms would overflow)
+    /// snaps straight to the target. And `dt` is capped at an hour to
+    /// keep every transcendental argument finite.
+    ///
+    /// Parameters are sanitized by [`SpringAnimation::params`] and,
+    /// the fields being public, re-sanitized here.
     pub fn update(&mut self, dt: f32) {
-        if !dt.is_finite() {
+        if !dt.is_finite() || dt <= 0.0 {
             return;
         }
-        // Bound the sub-step loop on frame spikes: convergence just slows.
-        let dt = dt.min(0.25);
-        if dt <= 0.0 {
+        let dt = dt.min(MAX_DT);
+        let stiffness = sanitize_stiffness(self.stiffness);
+        let damping = sanitize_damping(self.damping);
+        let alpha = 0.5 * damping;
+        if alpha * dt >= SETTLED_DECAY {
+            self.value = self.target;
+            self.velocity = 0.0;
             return;
         }
-        // Half the conservative semi-implicit stability bound, floored so
-        // an undamped spring (bound 0) can never zero the step size.
-        let bound = (self.damping / self.stiffness).min(2.0 / self.stiffness.sqrt()) * 0.5;
-        let step = bound.clamp(1.0 / 240.0, 1.0 / 60.0);
-        let steps = (dt / step).ceil().max(1.0) as usize;
-        let h = dt / steps as f32;
-        for _ in 0..steps {
-            self.integrate(h);
-        }
-    }
-
-    /// One semi-implicit Euler step (caller guarantees a stable `dt`).
-    fn integrate(&mut self, dt: f32) {
-        // Spring force: F = -k * (x - target)
-        let spring_force = -self.stiffness * (self.value - self.target);
-
-        // Damping force: F = -c * v
-        let damping_force = -self.damping * self.velocity;
-
-        // Total force and acceleration (assuming mass = 1)
-        let acceleration = spring_force + damping_force;
-
-        // Semi-implicit Euler integration (more stable than explicit Euler)
-        self.velocity += acceleration * dt;
-        self.value += self.velocity * dt;
+        // Displacement from the target: it obeys u'' = -k*u - c*u'.
+        let displacement = self.value - self.target;
+        let velocity = self.velocity;
+        let decay = (-alpha * dt).exp();
+        let disc = alpha * alpha - stiffness; // sign picks the branch
+        let rate = disc.abs().sqrt(); // omega (under) or beta (over)
+        let (displacement_t, velocity_t) = if rate * dt < NEAR_CRITICAL {
+            // Critically damped, or arbitrarily near either branch of it
+            // where dividing by the rate is ill-conditioned: the limit
+            // divides by nothing, with O((rate * dt)^2) error.
+            let envelope_rate = velocity + alpha * displacement;
+            (
+                decay * (displacement + envelope_rate * dt),
+                decay * (velocity - alpha * envelope_rate * dt),
+            )
+        } else if disc < 0.0 {
+            // Underdamped: rotate by omega * dt, then shrink by decay.
+            let (sin, cos) = (rate * dt).sin_cos();
+            let sin_coeff = (velocity + alpha * displacement) / rate;
+            (
+                decay * (displacement * cos + sin_coeff * sin),
+                decay
+                    * ((sin_coeff * rate - alpha * displacement) * cos
+                        - (displacement * rate + alpha * sin_coeff) * sin),
+            )
+        } else {
+            // Overdamped: the hyperbolic counterpart of the rotation.
+            let arg = rate * dt;
+            let (sinh, cosh) = (arg.sinh(), arg.cosh());
+            let sin_coeff = (velocity + alpha * displacement) / rate;
+            (
+                decay * (displacement * cosh + sin_coeff * sinh),
+                decay
+                    * ((sin_coeff * rate - alpha * displacement) * cosh
+                        + (displacement * rate - alpha * sin_coeff) * sinh),
+            )
+        };
+        self.value = self.target + displacement_t;
+        self.velocity = velocity_t;
     }
 
     /// Set a new target value
@@ -274,9 +344,8 @@ impl SpringAnimation {
 mod spring_tests {
     use super::*;
 
-    /// Semi-implicit Euler is only conditionally stable; the dt clamp must
-    /// keep a frame spike (here 0.25s steps - what kittest feeds) from
-    /// exploding the spring.
+    /// Kittest feeds 0.25s steps; the exact map stays on the true
+    /// trajectory instead of exploding like a step-limited integrator.
     #[test]
     fn huge_dt_does_not_explode() {
         let mut spring = SpringAnimation::new(256.0, 240.0).params(300.0, 25.0);
@@ -290,14 +359,39 @@ mod spring_tests {
             spring.value
         );
     }
+
+    /// The exact map is a flow: one big step must land on the same
+    /// trajectory as many small ones — the property semi-implicit Euler
+    /// violates once its step exceeds the stability bound.
+    #[test]
+    fn one_big_step_matches_many_small_steps() {
+        let mut big = SpringAnimation::new(0.0, 1.0).params(300.0, 25.0);
+        big.update(0.25);
+        let mut small = SpringAnimation::new(0.0, 1.0).params(300.0, 25.0);
+        for _ in 0..250 {
+            small.update(0.001);
+        }
+        assert!(
+            (big.value - small.value).abs() < 1.0e-3,
+            "{} vs {}",
+            big.value,
+            small.value
+        );
+        assert!(
+            (big.velocity - small.velocity).abs() < 5.0e-2,
+            "{} vs {}",
+            big.velocity,
+            small.velocity
+        );
+    }
 }
 
 #[cfg(test)]
 mod spring_stability_tests {
     use super::*;
 
-    /// The checkbox spring (k=2000, c=55) diverges at dt=1/30 with a single
-    /// semi-implicit step — the sub-stepped integrator must settle it.
+    /// The checkbox spring (k=2000, c=55) diverged at dt=1/30 under a
+    /// single semi-implicit step — the exact map has no bound to violate.
     #[test]
     fn stiff_spring_survives_frame_spikes() {
         let mut spring = SpringAnimation::new(0.0, 1.0).params(2000.0, 55.0);
@@ -311,11 +405,54 @@ mod spring_stability_tests {
         );
     }
 
-    /// NaN dt passes through `clamp` and would poison the spring forever.
+    /// Overdamped springs have the tightest semi-implicit bound
+    /// (h < 2/c): (300, 200) diverged under the old sub-step band even
+    /// though both parameters are perfectly legitimate.
+    #[test]
+    fn overdamped_spring_settles() {
+        let mut spring = SpringAnimation::new(0.0, 1.0).params(300.0, 200.0);
+        for _ in 0..300 {
+            spring.update(1.0 / 60.0);
+        }
+        assert!(spring.value.is_finite());
+        assert!(
+            (spring.value - 1.0).abs() < 0.01,
+            "settled at {}",
+            spring.value
+        );
+    }
+
+    /// Extreme stiffness once forced sub-steps below any fixed floor;
+    /// the exact map is O(1) for any parameters.
+    #[test]
+    fn extreme_stiffness_settles() {
+        let mut spring = SpringAnimation::new(0.0, 1.0).params(300_000.0, 55.0);
+        for _ in 0..300 {
+            spring.update(1.0 / 60.0);
+        }
+        assert!(
+            (spring.value - 1.0).abs() < 0.01,
+            "settled at {}",
+            spring.value
+        );
+    }
+
+    /// A step whose decay is visually zero lands exactly on the target.
+    #[test]
+    fn long_gap_snaps_to_the_target() {
+        let mut spring = SpringAnimation::new(0.0, 1.0).params(300.0, 200.0);
+        spring.update(1.0);
+        assert_eq!(spring.value, 1.0);
+        assert_eq!(spring.velocity, 0.0);
+    }
+
+    /// NaN dt passes through arithmetic and would poison the spring
+    /// forever; negative dt must likewise advance nothing.
     #[test]
     fn nan_dt_does_not_poison() {
         let mut spring = SpringAnimation::new(0.0, 1.0).params(300.0, 25.0);
         spring.update(f32::NAN);
+        spring.update(-1.0);
         assert!(spring.value.is_finite());
         for _ in 0..300 {
             spring.update(1.0 / 60.0);
@@ -327,8 +464,8 @@ mod spring_stability_tests {
         );
     }
 
-    /// An undamped spring never settles but must stay bounded (no energy
-    /// injection from the integrator).
+    /// An undamped spring never settles but must stay bounded — the exact
+    /// map conserves energy instead of injecting it.
     #[test]
     fn undamped_spring_stays_bounded() {
         let mut spring = SpringAnimation::new(0.0, 1.0).params(300.0, 0.0);
@@ -336,5 +473,44 @@ mod spring_stability_tests {
             spring.update(1.0 / 30.0);
         }
         assert!(spring.value.abs() < 2.0, "bounded, got {}", spring.value);
+    }
+}
+
+#[cfg(test)]
+mod spring_param_tests {
+    use super::*;
+
+    /// `params` sanitizes at the boundary like every width knob.
+    #[test]
+    fn garbage_params_fall_back_to_defaults() {
+        let spring = |k: f32, c: f32| SpringAnimation::new(0.0, 1.0).params(k, c);
+        assert_eq!(spring(f32::NAN, 20.0).stiffness, 200.0);
+        assert_eq!(spring(f32::INFINITY, 20.0).stiffness, 200.0);
+        assert_eq!(spring(0.0, 20.0).stiffness, 200.0);
+        assert_eq!(spring(-300.0, 20.0).stiffness, 200.0);
+        assert_eq!(spring(2000.0, f32::NAN).damping, 20.0);
+        assert_eq!(spring(2000.0, f32::NEG_INFINITY).damping, 20.0);
+        assert_eq!(spring(2000.0, -5.0).damping, 20.0);
+        // Legal values pass through untouched — including damping 0.
+        assert_eq!(spring(2000.0, 55.0).stiffness, 2000.0);
+        assert_eq!(spring(2000.0, 0.0).damping, 0.0);
+    }
+
+    /// The fields are public, so `update` re-sanitizes: direct mutation
+    /// cannot poison the simulation either.
+    #[test]
+    fn poisoned_fields_do_not_poison_the_simulation() {
+        let mut spring = SpringAnimation::new(0.0, 1.0);
+        spring.stiffness = f32::NAN;
+        spring.damping = f32::NEG_INFINITY;
+        for _ in 0..300 {
+            spring.update(1.0 / 60.0);
+        }
+        assert!(spring.value.is_finite());
+        assert!(
+            (spring.value - 1.0).abs() < 0.01,
+            "settled at {}",
+            spring.value
+        );
     }
 }
