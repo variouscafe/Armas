@@ -309,7 +309,12 @@ impl RangeSlider {
     }
 
     fn value_to_x(&self, value: f32, track_rect: &Rect) -> f32 {
-        let t = (value - self.range_min) / (self.range_max - self.range_min);
+        let range = self.range_max - self.range_min;
+        let t = if range.abs() > f32::EPSILON {
+            (value - self.range_min) / range
+        } else {
+            0.5
+        };
         track_rect.left() + t * track_rect.width()
     }
 

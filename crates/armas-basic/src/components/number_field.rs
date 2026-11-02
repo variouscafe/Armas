@@ -160,6 +160,13 @@ impl NumberField {
         let theme = ui.ctx().armas_theme();
         let total_width = self.width.unwrap_or(180.0);
 
+        // Heal a poisoned value at the component boundary (caller state
+        // or a stale persisted store): steppers and formatting can never
+        // recover from NaN otherwise.
+        if !value.is_finite() {
+            *value = self.clamp_value(self.min.unwrap_or(0.0));
+        }
+
         // Load state from memory if ID is set
         if let Some(id) = self.id {
             let state_id = id.with("number_field_state");
@@ -422,7 +429,10 @@ impl NumberField {
                 }
                 ui.ctx().data_mut(|d| {
                     d.insert_temp(text_id, false);
-                    d.remove_by_type::<String>(); // clean up buf
+                    // Remove only THIS field's buffer — a type-wide wipe
+                    // would destroy every other temp String in the app
+                    // (input groups, other number fields mid-edit).
+                    d.remove_temp::<String>(text_id.with("buf"));
                 });
             }
         } else {

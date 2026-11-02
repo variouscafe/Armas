@@ -260,7 +260,9 @@ impl Skeleton {
 
         // Calculate shimmer position from time for stateless animation
         let time = ui.input(|i| i.time) as f32;
-        self.shimmer_pos = (time * self.speed) % 1.0;
+        // rem_euclid (not %) so a negative speed runs the shimmer in
+        // reverse instead of pushing it off-rect forever.
+        self.shimmer_pos = (time * self.speed).rem_euclid(1.0);
 
         // Draw the skeleton
         self.draw_skeleton(ui, rect, &theme);

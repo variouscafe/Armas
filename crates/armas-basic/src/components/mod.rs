@@ -207,8 +207,24 @@ pub(crate) const fn sanitize_opt_value(raw: f32) -> Option<f32> {
 pub(crate) const fn sanitize_bounds(min: f32, max: f32) -> (f32, f32) {
     let (min, max) = match (min.is_finite(), max.is_finite()) {
         (true, true) => (min, max),
-        (true, false) => (min, min + 1.0),
-        (false, true) => (max - 1.0, max),
+        // Grow around the surviving bound with next_up/next_down when a
+        // fixed 1.0 span would round away at the f32 extremes.
+        (true, false) => {
+            let healed = if min + 1.0 > min {
+                min + 1.0
+            } else {
+                min.next_up()
+            };
+            (min, healed)
+        }
+        (false, true) => {
+            let healed = if max - 1.0 < max {
+                max - 1.0
+            } else {
+                max.next_down()
+            };
+            (healed, max)
+        }
         (false, false) => (0.0, 1.0),
     };
     if min <= max {
@@ -322,9 +338,15 @@ mod sanitize_tests {
         assert_eq!(sanitize_bounds(8.0, 2.0), (2.0, 8.0));
         assert_eq!(sanitize_bounds(f32::NAN, f32::NAN), (0.0, 1.0));
         // One-sided garbage heals around the surviving bound — the
-        // caller's explicit bound is never contradicted.
+        // caller's explicit bound is never contradicted, and the healed
+        // span survives IEEE rounding at the f32 extremes (a fixed
+        // +1.0 would saturate back to a degenerate equal pair).
         assert_eq!(sanitize_bounds(5.0, f32::NAN), (5.0, 6.0));
         assert_eq!(sanitize_bounds(f32::NAN, 5.0), (4.0, 5.0));
+        let (lo, hi) = sanitize_bounds(f32::MAX, f32::NAN);
+        assert!(lo < hi, "span must grow past f32::MAX: {lo} .. {hi}");
+        let (lo, hi) = sanitize_bounds(f32::NAN, f32::MIN);
+        assert!(lo < hi, "span must grow below f32::MIN: {lo} .. {hi}");
     }
 }
 
@@ -341,42 +363,101 @@ mod knob_inventory_tests {
     ///   per-field setters.
     const ALLOWED_RAW: &[&str] = &["input.rs: font_size", "sidebar.rs: set_widths"];
 
-    /// Strip line/block comments so a body can only satisfy the scan by
-    /// *calling* a sanitizer, not by mentioning one in prose.
+    /// Strip comments so a body can only satisfy the scan by *calling*
+    /// a sanitizer, not by mentioning one in prose. String-literal aware
+    /// (`//` inside a string is code), nested block comments, and
+    /// lifetimes (`'a`) are not treated as char literals.
     fn without_comments(src: &str) -> String {
+        let bytes = src.as_bytes();
         let mut out = String::with_capacity(src.len());
-        let mut in_block = false;
-        for line in src.lines() {
-            let trimmed = line.trim_start();
-            if in_block {
-                if let Some(end) = line.find("*/") {
-                    out.push_str(&line[end + 2..]);
-                    in_block = false;
-                }
-                continue;
-            }
-            if trimmed.starts_with("///") || trimmed.starts_with("//!") {
-                continue;
-            }
-            if trimmed.starts_with("/*") {
-                if !trimmed.starts_with("/**") || trimmed.contains("*/") {
-                    // non-doc block, or single-line block — drop it
-                    if let Some(endrel) = line.find("*/") {
-                        out.push_str(&line[endrel + 2..]);
-                    }
+        let mut i = 0usize;
+        let mut in_string = false;
+        let mut in_char = false;
+        let mut block_depth = 0usize;
+        while i < bytes.len() {
+            let b = bytes[i];
+            let next = bytes.get(i + 1).copied();
+            if block_depth > 0 {
+                if b == b'/' && next == Some(b'*') {
+                    block_depth += 1;
+                    i += 2;
+                } else if b == b'*' && next == Some(b'/') {
+                    block_depth -= 1;
+                    i += 2;
                 } else {
-                    in_block = true;
+                    i += 1;
                 }
                 continue;
             }
-            if let Some(cut) = line.find("//") {
-                out.push_str(&line[..cut]);
-            } else {
-                out.push_str(line);
+            if in_string || in_char {
+                out.push(b as char);
+                if b == b'\\' {
+                    if let Some(n) = next {
+                        out.push(n as char);
+                    }
+                    i += 2;
+                    continue;
+                }
+                if (in_string && b == b'"') || (in_char && b == b'\'') {
+                    in_string = false;
+                    in_char = false;
+                }
+                i += 1;
+                continue;
             }
-            out.push('\n');
+            match b {
+                b'"' => {
+                    in_string = true;
+                    out.push(b as char);
+                    i += 1;
+                }
+                b'\'' => {
+                    // A char literal closes immediately ('x', '\n');
+                    // a lifetime ('a) does not enter char state.
+                    let is_char_literal = next == Some(b'\\') || bytes.get(i + 2) == Some(&b'\'');
+                    if is_char_literal {
+                        in_char = true;
+                    }
+                    out.push(b as char);
+                    i += 1;
+                }
+                b'/' if next == Some(b'/') => {
+                    while i < bytes.len() && bytes[i] != b'\n' {
+                        i += 1;
+                    }
+                }
+                b'/' if next == Some(b'*') => {
+                    block_depth = 1;
+                    i += 2;
+                }
+                _ => {
+                    out.push(b as char);
+                    i += 1;
+                }
+            }
         }
         out
+    }
+
+    /// The stripper itself: prose in any comment form must not survive,
+    /// and code after `//` inside a string literal must.
+    #[test]
+    fn comment_stripper_is_not_flatterable() {
+        let src = r#"
+/// sanitize_percent handles docs
+pub const fn a(mut self, v: f32) -> Self {
+    /* we sanitize_percent
+       at the boundary */ self.a = v;
+    let url = "https://example";
+    let life: &'a str = "x"; // sanitize_width in a comment
+    self.b = sanitize_width(v, self.b);
+}
+"#;
+        let stripped = without_comments(src);
+        assert!(!stripped.contains("sanitize_percent"), "{stripped}");
+        assert!(!stripped.contains("in a comment"), "{stripped}");
+        assert!(stripped.contains("https://example"), "{stripped}");
+        assert!(stripped.contains("sanitize_width(v, self.b)"), "{stripped}");
     }
 
     #[test]

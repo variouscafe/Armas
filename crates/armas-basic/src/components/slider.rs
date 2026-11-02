@@ -320,8 +320,14 @@ impl Slider {
 
                 painter.rect_filled(track_rect, TRACK_HEIGHT / 2.0, theme.muted());
 
-                // Filled track (progress)
-                let t = (*value - self.min) / (self.max - self.min);
+                // Filled track (progress); a degenerate equal-bounds
+                // range must not divide by zero into the painter.
+                let range = self.max - self.min;
+                let t = if range.abs() > f32::EPSILON {
+                    (*value - self.min) / range
+                } else {
+                    0.5
+                };
                 let fill_width = track_rect.width() * t;
                 let fill_rect = Rect::from_min_size(track_rect.min, vec2(fill_width, TRACK_HEIGHT));
 
