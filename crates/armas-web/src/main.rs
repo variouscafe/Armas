@@ -168,9 +168,19 @@ impl ShowcaseApp {
             .unwrap_or(ThemeSource::System);
 
         let theme = match theme_source {
-            // Best guess only - the follow branch re-derives from the real
-            // mode on the first ui() pass (see `last_mode`).
-            ThemeSource::System => Self::theme_for_mode(cc.egui_ctx.theme()),
+            ThemeSource::System => {
+                // Re-assert the System preference: eframe unconditionally
+                // RESTORES egui memory before new(), so a stale pinned
+                // preference (from a pre-persist_egui_memory build, or
+                // another eframe app on the same origin) would otherwise
+                // hijack System mode and swallow every theme-change event.
+                cc.egui_ctx.set_theme(egui::ThemePreference::System);
+                // Best guess for the field only - the follow branch
+                // re-derives from the real mode and styles on the FIRST
+                // ui() pass (see `last_mode`), which always precedes the
+                // first paint, so no apply_theme here.
+                Self::theme_for_mode(cc.egui_ctx.theme())
+            }
             source => {
                 let theme = if source == ThemeSource::Light {
                     AppTheme::light()
@@ -180,12 +190,12 @@ impl ShowcaseApp {
                 // A restored pin also drives the egui preference so the
                 // mode and the tint agree from the first frame.
                 cc.egui_ctx.set_theme(Self::preference_for(&theme));
+                Self::apply_theme(&theme, &cc.egui_ctx);
                 theme
             }
         };
 
         Self::setup_fonts(&cc.egui_ctx);
-        Self::apply_theme(&theme, &cc.egui_ctx);
 
         // Parse URL and set initial page
         let page_state = Self::page_from_url();

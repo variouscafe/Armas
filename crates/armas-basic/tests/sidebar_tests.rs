@@ -1,6 +1,6 @@
 //! Tests for Sidebar component using `egui_kittest`
 
-use armas_basic::components::{CollapsibleMode, Sidebar};
+use armas_basic::components::{CollapsibleMode, Sidebar, SidebarState};
 use armas_basic::ArmasContextExt;
 use egui_kittest::Harness;
 
@@ -299,4 +299,31 @@ fn test_sidebar_app_layout() {
     });
 
     harness.step();
+}
+
+/// Controlled mode without width knobs: the sidebar must animate between
+/// the STATE's widths (`set_widths`), not the module defaults — the settled
+/// drawn width pins the compute/spring bounds coupling.
+#[test]
+fn test_controlled_state_widths_drive_the_layout() {
+    let mut state = SidebarState::new(true);
+    state.set_widths(70.0, 240.0);
+
+    let mut width = 0.0;
+    {
+        let mut harness = Harness::new_ui(|ui| {
+            let _theme = ui.ctx().armas_theme();
+            let response = Sidebar::new().state(&mut state).show(ui, |sidebar| {
+                sidebar.item("🏠", "Home");
+            });
+            width = response.response.rect.width();
+        });
+        harness.set_size(egui::vec2(800.0, 600.0));
+        harness.run_steps(120); // let the spring settle
+    }
+
+    assert!(
+        (width - 240.0).abs() < 1.0,
+        "expected the state's expanded width (240), got {width}"
+    );
 }

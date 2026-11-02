@@ -204,6 +204,10 @@ impl SpringAnimation {
 
     /// Update the spring simulation using semi-implicit Euler integration
     pub fn update(&mut self, dt: f32) {
+        // Semi-implicit Euler is only conditionally stable (dt < ~2/sqrt(stiffness));
+        // clamp dt so a frame spike can never explode the spring - a large
+        // step just converges more slowly.
+        let dt = dt.clamp(0.0, 1.0 / 30.0);
         // Spring force: F = -k * (x - target)
         let spring_force = -self.stiffness * (self.value - self.target);
 
@@ -237,5 +241,27 @@ impl SpringAnimation {
         self.value = value;
         self.target = target;
         self.velocity = 0.0;
+    }
+}
+
+#[cfg(test)]
+mod spring_tests {
+    use super::*;
+
+    /// Semi-implicit Euler is only conditionally stable; the dt clamp must
+    /// keep a frame spike (here 0.25s steps - what kittest feeds) from
+    /// exploding the spring.
+    #[test]
+    fn huge_dt_does_not_explode() {
+        let mut spring = SpringAnimation::new(256.0, 240.0).params(300.0, 25.0);
+        for _ in 0..50 {
+            spring.update(0.25);
+        }
+        assert!(spring.value.is_finite());
+        assert!(
+            (spring.value - 240.0).abs() < 1.0,
+            "settled at {}",
+            spring.value
+        );
     }
 }

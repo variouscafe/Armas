@@ -728,7 +728,10 @@ fn render_toggle_button_inline(
     h_pad: f32,
 ) {
     let (rect, response) = ui.allocate_exact_size(
-        Vec2::new(layout.content_width - ITEM_PADDING * 2.0, ITEM_HEIGHT),
+        Vec2::new(
+            (layout.content_width - ITEM_PADDING * 2.0).max(0.0),
+            ITEM_HEIGHT,
+        ),
         Sense::click().union(Sense::hover()),
     );
     ui.add_space(ITEM_GAP);
@@ -742,7 +745,11 @@ fn render_toggle_button_inline(
         let icon_x = layout.icon_x_base + h_pad;
         let painter = ui.painter();
         if response.hovered() {
-            painter.rect_filled(rect, CORNER_RADIUS, theme.sidebar_accent());
+            painter.rect_filled(
+                inset_paint_rect(rect, h_pad),
+                CORNER_RADIUS,
+                theme.sidebar_accent(),
+            );
         }
         painter.text(
             Pos2::new(icon_x, rect.center().y),
@@ -756,6 +763,17 @@ fn render_toggle_button_inline(
             },
         );
     }
+}
+
+/// Painted elements must sit inside the inset card of Floating/Inset
+/// variants, while interaction rects are laid out against the outer rect
+/// (a slightly generous hit area): shift by the horizontal inset and keep
+/// fills inside the card.
+fn inset_paint_rect(rect: Rect, h_pad: f32) -> Rect {
+    Rect::from_min_size(
+        Pos2::new(rect.left() + h_pad, rect.top()),
+        Vec2::new((rect.width() - 2.0 * h_pad).max(0.0), rect.height()),
+    )
 }
 
 /// Render all sidebar items using per-item allocation so scroll areas work correctly.
@@ -788,7 +806,7 @@ fn render_items(
                 let opacity = ((layout.expansion_ratio - 0.5) / 0.5).clamp(0.0, 1.0);
                 let color = theme.sidebar_foreground().gamma_multiply(0.7 * opacity);
                 ui.painter().text(
-                    Pos2::new(rect.left() + ITEM_PADDING, rect.center().y),
+                    Pos2::new(rect.left() + h_pad + ITEM_PADDING, rect.center().y),
                     egui::Align2::LEFT_CENTER,
                     &item.label,
                     egui::FontId::proportional(12.0),
@@ -803,7 +821,7 @@ fn render_items(
         } else {
             0.0
         };
-        let item_width = layout.content_width - ITEM_PADDING * 2.0 - indent;
+        let item_width = (layout.content_width - ITEM_PADDING * 2.0 - indent).max(0.0);
 
         let (rect, response) = ui.allocate_exact_size(
             Vec2::new(item_width, item_height),
@@ -839,7 +857,7 @@ fn render_items(
 
         // Left border for sub-items
         if item.depth > 0 {
-            let border_x = rect.left() - indent + 14.0;
+            let border_x = rect.left() - indent + 14.0 + h_pad;
             painter.line_segment(
                 [
                     Pos2::new(border_x, rect.top()),
@@ -850,7 +868,11 @@ fn render_items(
         }
 
         if is_active || is_hovered {
-            painter.rect_filled(rect, CORNER_RADIUS, theme.sidebar_accent());
+            painter.rect_filled(
+                inset_paint_rect(rect, h_pad),
+                CORNER_RADIUS,
+                theme.sidebar_accent(),
+            );
         }
 
         let text_color = if is_active || is_hovered {
@@ -862,7 +884,7 @@ fn render_items(
         // Icon (offset icon_x_base by h_pad since cursor is already indented)
         let icon_center = if show_icons && !item.icon.is_empty() {
             let item_icon_x = if item.depth > 0 {
-                rect.left() + ITEM_PADDING + ICON_SIZE / 2.0
+                rect.left() + h_pad + ITEM_PADDING + ICON_SIZE / 2.0
             } else {
                 layout.icon_x_base + h_pad
             };
@@ -888,9 +910,9 @@ fn render_items(
             );
 
             let label_x = if show_icons && !item.icon.is_empty() {
-                rect.left() + ITEM_PADDING + ICON_SIZE + 8.0
+                rect.left() + h_pad + ITEM_PADDING + ICON_SIZE + 8.0
             } else {
-                rect.left() + ITEM_PADDING
+                rect.left() + h_pad + ITEM_PADDING
             };
 
             painter.text(
@@ -908,7 +930,7 @@ fn render_items(
                     .copied()
                     .unwrap_or(false);
                 painter.text(
-                    Pos2::new(rect.right() - ITEM_PADDING - 8.0, rect.center().y),
+                    Pos2::new(rect.right() - h_pad - ITEM_PADDING - 8.0, rect.center().y),
                     egui::Align2::CENTER_CENTER,
                     if is_expanded { "▼" } else { "▶" },
                     egui::FontId::proportional(10.0),
@@ -918,7 +940,13 @@ fn render_items(
 
             if let Some(badge) = &item.badge {
                 if !item.is_group_header {
-                    draw_badge(painter, theme, &rect, badge, label_opacity);
+                    draw_badge(
+                        painter,
+                        theme,
+                        &inset_paint_rect(rect, h_pad),
+                        badge,
+                        label_opacity,
+                    );
                 }
             }
         } else if let Some(badge) = &item.badge {
