@@ -108,18 +108,15 @@ pub use tree_view::{Browser, BrowserItem, BrowserResponse};
 /// knob poisons finite arithmetic at use sites (offscreen anchors, infinite
 /// allocations).
 pub(crate) const fn sanitize_width(raw: f32, default: f32) -> f32 {
-    if raw.is_finite() && raw > 0.0 {
-        raw
-    } else {
-        default
-    }
+    crate::sanitize::finite_above_or(raw, 0.0, default)
 }
 
 /// [`sanitize_width`] for explicit-width knobs, classifying a single raw
 /// value: finite positive → set; garbage counts as unset.
 pub(crate) const fn sanitize_opt_width(raw: f32) -> Option<f32> {
-    if raw.is_finite() && raw > 0.0 {
-        Some(raw)
+    let sane = sanitize_width(raw, 0.0);
+    if sane > 0.0 {
+        Some(sane)
     } else {
         None
     }

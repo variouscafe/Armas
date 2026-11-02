@@ -38,6 +38,8 @@ pub mod fonts;
 pub mod icon;
 /// Layout components
 pub mod layout;
+/// Shared boundary policy for user-supplied float knobs
+mod sanitize;
 /// Theme system
 pub mod theme;
 
