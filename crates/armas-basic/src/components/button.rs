@@ -8,7 +8,7 @@
 //! - Link: Text style with underline on hover
 
 use super::content::ContentContext;
-use super::sanitize_opt_width;
+use super::{sanitize_opt_height, sanitize_opt_width};
 use crate::ext::ArmasContextExt;
 use crate::Theme;
 use egui::{Color32, Response, Sense, Ui, Vec2};
@@ -244,10 +244,11 @@ impl Button {
         self
     }
 
-    /// Set explicit height (overrides size-based height)
+    /// Set explicit height (overrides size-based height; finite positive — garbage such
+    /// as NaN counts as unset)
     #[must_use]
     pub const fn height(mut self, height: f32) -> Self {
-        self.custom_height = Some(height);
+        self.custom_height = sanitize_opt_height(height);
         self
     }
 
@@ -434,4 +435,19 @@ impl ButtonVariant {
     pub const FilledTonal: Self = Self::Secondary;
     /// Elevated is now Secondary
     pub const Elevated: Self = Self::Secondary;
+}
+
+#[cfg(test)]
+mod height_knob_tests {
+    use super::*;
+
+    /// The explicit-height knob sanitizes at the builder boundary — a
+    /// NaN height must never reach an allocation.
+    #[test]
+    fn garbage_height_counts_as_unset() {
+        for garbage in [f32::NAN, f32::INFINITY, -4.0, 0.0] {
+            assert!(Button::new("b").height(garbage).custom_height.is_none());
+        }
+        assert_eq!(Button::new("b").height(44.0).custom_height, Some(44.0));
+    }
 }

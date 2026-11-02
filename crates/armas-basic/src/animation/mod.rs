@@ -136,9 +136,7 @@ impl<T: Interpolate> Animation<T> {
         }
         // Heal poisoned state (the pub field): a non-finite elapsed means
         // no time has passed, not NaN forever.
-        if !self.elapsed.is_finite() {
-            self.elapsed = 0.0;
-        }
+        self.elapsed = self.sane_elapsed();
 
         self.elapsed += dt;
         if self.elapsed >= self.sane_duration() {
@@ -150,11 +148,7 @@ impl<T: Interpolate> Animation<T> {
     /// The pub `elapsed` field healed for reads: non-finite counts as no
     /// time having passed.
     const fn sane_elapsed(&self) -> f32 {
-        if self.elapsed.is_finite() {
-            self.elapsed
-        } else {
-            0.0
-        }
+        crate::sanitize::finite_or(self.elapsed, 0.0)
     }
 
     /// Get the current value of the animation

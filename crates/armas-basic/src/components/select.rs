@@ -220,8 +220,13 @@ impl Select {
         self
     }
 
-    /// Set the trigger height (finite positive; garbage such as NaN
-    /// counts as unset and the default 36px applies)
+    /// Set an explicit height — for the trigger *and*, as a side effect,
+    /// every dropdown option row (the single knob couples both; rows
+    /// would otherwise be 32px against the trigger's 36px).
+    ///
+    /// Finite positive; garbage such as NaN counts as unset, in which
+    /// case the auto height applies — the available height capped at
+    /// 36px for the trigger, 32px for rows.
     #[must_use]
     pub const fn height(mut self, height: f32) -> Self {
         self.custom_height = sanitize_opt_height(height);
@@ -1024,7 +1029,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod width_knob_tests {
+mod knob_tests {
     use super::*;
 
     #[test]

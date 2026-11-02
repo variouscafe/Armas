@@ -7,7 +7,7 @@
 //! - Icons (left and right)
 //! - Password masking
 
-use super::sanitize_opt_width;
+use super::{sanitize_opt_height, sanitize_opt_width};
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Response, Sense, Stroke, TextEdit, Ui, Vec2};
 
@@ -173,10 +173,11 @@ impl Input {
         self
     }
 
-    /// Set explicit height (overrides variant-based height)
+    /// Set explicit height (overrides variant-based height; finite positive — garbage such
+    /// as NaN counts as unset)
     #[must_use]
     pub const fn height(mut self, height: f32) -> Self {
-        self.custom_height = Some(height);
+        self.custom_height = sanitize_opt_height(height);
         self
     }
 
@@ -539,5 +540,20 @@ mod tests {
     fn test_search_input() {
         let search = SearchInput::new().placeholder("Search files...");
         assert_eq!(search.placeholder, "Search files...");
+    }
+}
+
+#[cfg(test)]
+mod height_knob_tests {
+    use super::*;
+
+    /// The explicit-height knob sanitizes at the builder boundary — a
+    /// NaN height must never reach an allocation.
+    #[test]
+    fn garbage_height_counts_as_unset() {
+        for garbage in [f32::NAN, f32::INFINITY, -4.0, 0.0] {
+            assert!(Input::new("p").height(garbage).custom_height.is_none());
+        }
+        assert_eq!(Input::new("p").height(40.0).custom_height, Some(40.0));
     }
 }

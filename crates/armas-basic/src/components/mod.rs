@@ -152,6 +152,8 @@ mod sanitize_tests {
     fn finite_positive_passes_through() {
         assert_eq!(sanitize_width(150.0, 280.0), 150.0);
         assert_eq!(sanitize_opt_width(150.0), Some(150.0));
+        assert_eq!(sanitize_height(28.0, 36.0), 28.0);
+        assert_eq!(sanitize_opt_height(28.0), Some(28.0));
     }
 
     #[test]
@@ -159,6 +161,8 @@ mod sanitize_tests {
         for garbage in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -5.0] {
             assert_eq!(sanitize_width(garbage, 280.0), 280.0);
             assert_eq!(sanitize_opt_width(garbage), None);
+            assert_eq!(sanitize_height(garbage, 36.0), 36.0);
+            assert_eq!(sanitize_opt_height(garbage), None);
         }
     }
 }

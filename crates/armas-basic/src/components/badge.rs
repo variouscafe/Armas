@@ -8,7 +8,7 @@
 //! - Outline (border only)
 
 use super::content::ContentContext;
-use super::sanitize_opt_width;
+use super::{sanitize_opt_height, sanitize_opt_width};
 use crate::ext::ArmasContextExt;
 use crate::Theme;
 use egui::{Color32, Pos2, Response, Ui, Vec2};
@@ -153,10 +153,11 @@ impl Badge {
         self
     }
 
-    /// Set explicit height (overrides computed height)
+    /// Set explicit height (overrides computed height; finite positive — garbage such
+    /// as NaN counts as unset)
     #[must_use]
     pub const fn height(mut self, height: f32) -> Self {
-        self.custom_height = Some(height);
+        self.custom_height = sanitize_opt_height(height);
         self
     }
 
@@ -566,5 +567,20 @@ impl NotificationBadge {
         );
 
         response
+    }
+}
+
+#[cfg(test)]
+mod height_knob_tests {
+    use super::*;
+
+    /// The explicit-height knob sanitizes at the builder boundary — a
+    /// NaN height must never reach an allocation.
+    #[test]
+    fn garbage_height_counts_as_unset() {
+        for garbage in [f32::NAN, f32::INFINITY, -4.0, 0.0] {
+            assert!(Badge::new("b").height(garbage).custom_height.is_none());
+        }
+        assert_eq!(Badge::new("b").height(24.0).custom_height, Some(24.0));
     }
 }
