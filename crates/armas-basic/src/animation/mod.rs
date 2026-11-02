@@ -202,12 +202,38 @@ impl SpringAnimation {
         self
     }
 
-    /// Update the spring simulation using semi-implicit Euler integration
+    /// Update the spring simulation using semi-implicit Euler integration,
+    /// sub-stepped to the stability bound of the current parameters.
+    ///
+    /// Semi-implicit Euler is only conditionally stable (roughly
+    /// `dt < c/k` and `dt < 2/sqrt(k)`), so a global dt clamp cannot
+    /// guarantee stability for every stiffness — the checkbox spring
+    /// (k=2000, c=55) diverges at dt = 1/30. Any dt is therefore
+    /// sub-stepped into chunks below the parameter-derived bound. A
+    /// non-finite dt (whose NaN would pass through `clamp` and poison the
+    /// spring permanently) advances nothing.
     pub fn update(&mut self, dt: f32) {
-        // Semi-implicit Euler is only conditionally stable (dt < ~2/sqrt(stiffness));
-        // clamp dt so a frame spike can never explode the spring - a large
-        // step just converges more slowly.
-        let dt = dt.clamp(0.0, 1.0 / 30.0);
+        if !dt.is_finite() {
+            return;
+        }
+        // Bound the sub-step loop on frame spikes: convergence just slows.
+        let dt = dt.min(0.25);
+        if dt <= 0.0 {
+            return;
+        }
+        // Half the conservative semi-implicit stability bound, floored so
+        // an undamped spring (bound 0) can never zero the step size.
+        let bound = (self.damping / self.stiffness).min(2.0 / self.stiffness.sqrt()) * 0.5;
+        let step = bound.clamp(1.0 / 240.0, 1.0 / 60.0);
+        let steps = (dt / step).ceil().max(1.0) as usize;
+        let h = dt / steps as f32;
+        for _ in 0..steps {
+            self.integrate(h);
+        }
+    }
+
+    /// One semi-implicit Euler step (caller guarantees a stable `dt`).
+    fn integrate(&mut self, dt: f32) {
         // Spring force: F = -k * (x - target)
         let spring_force = -self.stiffness * (self.value - self.target);
 
@@ -263,5 +289,52 @@ mod spring_tests {
             "settled at {}",
             spring.value
         );
+    }
+}
+
+#[cfg(test)]
+mod spring_stability_tests {
+    use super::*;
+
+    /// The checkbox spring (k=2000, c=55) diverges at dt=1/30 with a single
+    /// semi-implicit step — the sub-stepped integrator must settle it.
+    #[test]
+    fn stiff_spring_survives_frame_spikes() {
+        let mut spring = SpringAnimation::new(0.0, 1.0).params(2000.0, 55.0);
+        for _ in 0..200 {
+            spring.update(1.0 / 30.0);
+        }
+        assert!(
+            (spring.value - 1.0).abs() < 0.01,
+            "settled at {}",
+            spring.value
+        );
+    }
+
+    /// NaN dt passes through `clamp` and would poison the spring forever.
+    #[test]
+    fn nan_dt_does_not_poison() {
+        let mut spring = SpringAnimation::new(0.0, 1.0).params(300.0, 25.0);
+        spring.update(f32::NAN);
+        assert!(spring.value.is_finite());
+        for _ in 0..300 {
+            spring.update(1.0 / 60.0);
+        }
+        assert!(
+            (spring.value - 1.0).abs() < 0.01,
+            "settled at {}",
+            spring.value
+        );
+    }
+
+    /// An undamped spring never settles but must stay bounded (no energy
+    /// injection from the integrator).
+    #[test]
+    fn undamped_spring_stays_bounded() {
+        let mut spring = SpringAnimation::new(0.0, 1.0).params(300.0, 0.0);
+        for _ in 0..500 {
+            spring.update(1.0 / 30.0);
+        }
+        assert!(spring.value.abs() < 2.0, "bounded, got {}", spring.value);
     }
 }

@@ -767,13 +767,15 @@ fn render_toggle_button_inline(
 
 /// Painted elements must sit inside the inset card of Floating/Inset
 /// variants, while interaction rects are laid out against the outer rect
-/// (a slightly generous hit area): shift by the horizontal inset and keep
-/// fills inside the card.
+/// (a slightly generous hit area): shrink by the horizontal inset.
 fn inset_paint_rect(rect: Rect, h_pad: f32) -> Rect {
-    Rect::from_min_size(
-        Pos2::new(rect.left() + h_pad, rect.top()),
-        Vec2::new((rect.width() - 2.0 * h_pad).max(0.0), rect.height()),
-    )
+    let inset = rect.shrink2(Vec2::new(h_pad, 0.0));
+    if inset.width() >= 0.0 {
+        inset
+    } else {
+        // Degenerate (no room for the inset): paint un-inset.
+        rect
+    }
 }
 
 /// Render all sidebar items using per-item allocation so scroll areas work correctly.
@@ -798,8 +800,10 @@ fn render_items(
 
         // Group labels — non-interactive
         if item.is_group_label {
-            let (rect, _) = ui
-                .allocate_exact_size(Vec2::new(layout.content_width, item_height), Sense::hover());
+            let (rect, _) = ui.allocate_exact_size(
+                Vec2::new(layout.content_width.max(0.0), item_height),
+                Sense::hover(),
+            );
             ui.add_space(ITEM_GAP);
 
             if ui.is_rect_visible(rect) && layout.expansion_ratio > 0.5 {
