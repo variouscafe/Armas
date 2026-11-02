@@ -81,11 +81,7 @@ impl<T: Interpolate> Animation<T> {
     /// The effective duration: the pub `duration` field is healed the
     /// same way the constructor sanitizes it.
     const fn sane_duration(&self) -> f32 {
-        if self.duration.is_finite() {
-            self.duration
-        } else {
-            DEFAULT_DURATION
-        }
+        sanitize_duration(self.duration)
     }
 
     /// Set the easing function
@@ -125,8 +121,8 @@ impl<T: Interpolate> Animation<T> {
     ///
     /// A non-finite dt (whose NaN would make `elapsed` — and therefore
     /// every later `value()` — NaN forever) advances nothing; a negative
-    /// dt likewise never rewinds the clock. A non-finite duration field
-    /// is healed to the default.
+    /// dt likewise never rewinds the clock. On a valid dt a non-finite
+    /// duration field is healed to the default.
     pub fn update(&mut self, dt: f32) {
         if self.state != AnimationState::Running {
             return;

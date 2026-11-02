@@ -3,7 +3,17 @@
 //! Provides tools for creating aceternity-style staggered animations where
 //! multiple elements animate with sequential delays.
 
-use super::{Animation, AnimationState, EasingFunction, Interpolate};
+use super::{sanitize_duration, Animation, AnimationState, EasingFunction, Interpolate};
+
+/// A non-finite delay collapses to "no delay" (the items animate
+/// together) instead of poisoning every item window.
+const fn sanitize_delay(raw: f32) -> f32 {
+    if raw.is_finite() {
+        raw
+    } else {
+        0.0
+    }
+}
 
 /// Staggered animation system for multiple items
 ///
@@ -42,6 +52,10 @@ pub struct StaggeredAnimation<T: Interpolate> {
 
 impl<T: Interpolate> StaggeredAnimation<T> {
     /// Create a new staggered animation
+    ///
+    /// Knobs are sanitized at this boundary like every other animator: a
+    /// non-finite duration falls back to the 0.3s default, a non-finite
+    /// delay collapses to "no delay".
     pub const fn new(
         start: T,
         end: T,
@@ -51,8 +65,8 @@ impl<T: Interpolate> StaggeredAnimation<T> {
     ) -> Self {
         Self {
             base_delay: 0.0,
-            stagger_delay,
-            duration,
+            stagger_delay: sanitize_delay(stagger_delay),
+            duration: sanitize_duration(duration),
             easing: EasingFunction::EaseOut,
             elapsed: 0.0,
             item_count,
@@ -62,9 +76,13 @@ impl<T: Interpolate> StaggeredAnimation<T> {
     }
 
     /// Set the base delay before first item
+    ///
+    /// A non-finite delay is ignored (kept at the previous value).
     #[must_use]
     pub const fn base_delay(mut self, delay: f32) -> Self {
-        self.base_delay = delay;
+        if delay.is_finite() {
+            self.base_delay = delay;
+        }
         self
     }
 
@@ -76,7 +94,17 @@ impl<T: Interpolate> StaggeredAnimation<T> {
     }
 
     /// Update the animation
+    ///
+    /// A non-finite or negative dt advances nothing (the same dt policy
+    /// as every other animator); a valid dt also heals non-finite knob
+    /// fields.
     pub fn update(&mut self, dt: f32) {
+        if !dt.is_finite() || dt < 0.0 {
+            return;
+        }
+        self.duration = sanitize_duration(self.duration);
+        self.stagger_delay = sanitize_delay(self.stagger_delay);
+        self.base_delay = sanitize_delay(self.base_delay);
         self.elapsed += dt;
     }
 
@@ -85,10 +113,20 @@ impl<T: Interpolate> StaggeredAnimation<T> {
         self.elapsed = 0.0;
     }
 
+    /// Sane knob values for the read paths (the fields are public).
+    const fn sane_knobs(&self) -> (f32, f32, f32) {
+        (
+            sanitize_delay(self.base_delay),
+            sanitize_delay(self.stagger_delay),
+            sanitize_duration(self.duration),
+        )
+    }
+
     /// Get the value for a specific item index
     pub fn value(&self, index: usize) -> T {
-        let item_start_time = self.base_delay + (index as f32 * self.stagger_delay);
-        let item_end_time = item_start_time + self.duration;
+        let (base_delay, stagger_delay, duration) = self.sane_knobs();
+        let item_start_time = base_delay + (index as f32 * stagger_delay);
+        let item_end_time = item_start_time + duration;
 
         if self.elapsed < item_start_time {
             // Not started yet
@@ -102,7 +140,7 @@ impl<T: Interpolate> StaggeredAnimation<T> {
 
         // In progress
         let item_elapsed = self.elapsed - item_start_time;
-        let t = (item_elapsed / self.duration).clamp(0.0, 1.0);
+        let t = (item_elapsed / duration).clamp(0.0, 1.0);
         let eased_t = self.easing.apply(t);
 
         self.start.interpolate(&self.end, eased_t)
@@ -110,22 +148,23 @@ impl<T: Interpolate> StaggeredAnimation<T> {
 
     /// Get the progress (0.0 to 1.0) for a specific item
     pub fn progress(&self, index: usize) -> f32 {
-        let item_start_time = self.base_delay + (index as f32 * self.stagger_delay);
-        let item_end_time = item_start_time + self.duration;
+        let (base_delay, stagger_delay, duration) = self.sane_knobs();
+        let item_start_time = base_delay + (index as f32 * stagger_delay);
+        let item_end_time = item_start_time + duration;
 
         if self.elapsed < item_start_time {
             0.0
         } else if self.elapsed >= item_end_time {
             1.0
         } else {
-            ((self.elapsed - item_start_time) / self.duration).clamp(0.0, 1.0)
+            ((self.elapsed - item_start_time) / duration).clamp(0.0, 1.0)
         }
     }
 
     /// Check if all items have completed
     pub fn is_complete(&self) -> bool {
-        let last_item_end =
-            self.base_delay + ((self.item_count - 1) as f32 * self.stagger_delay) + self.duration;
+        let (base_delay, stagger_delay, duration) = self.sane_knobs();
+        let last_item_end = base_delay + ((self.item_count - 1) as f32 * stagger_delay) + duration;
         self.elapsed >= last_item_end
     }
 
@@ -183,15 +222,29 @@ impl<T: Interpolate> AnimationSequence<T> {
     }
 
     /// Add an animation step with optional delay
+    ///
+    /// A non-finite delay collapses to "no delay" (a NaN delay would
+    /// otherwise compare false against the elapsed time forever).
     #[must_use]
     pub fn then(mut self, animation: Animation<T>, delay: f32) -> Self {
-        self.animations.push(SequenceStep { delay, animation });
+        self.animations.push(SequenceStep {
+            delay: sanitize_delay(delay),
+            animation,
+        });
         self
     }
 
     /// Update the sequence
+    ///
+    /// A non-finite or negative dt advances nothing — the sequence drives
+    /// its steps by absolute time (writing the inner `elapsed` directly),
+    /// so one garbage frame would otherwise poison the inner animation
+    /// past its own guard.
     pub fn update(&mut self, dt: f32) {
         if self.current_step >= self.animations.len() {
+            return;
+        }
+        if !dt.is_finite() || dt < 0.0 {
             return;
         }
 
@@ -207,7 +260,7 @@ impl<T: Interpolate> AnimationSequence<T> {
         let animation_dt = self.elapsed - step.delay;
         step.animation.elapsed = animation_dt;
 
-        if animation_dt >= step.animation.duration {
+        if animation_dt >= step.animation.sane_duration() {
             // Move to next step
             self.current_step += 1;
             self.elapsed = 0.0;
@@ -373,5 +426,56 @@ mod tests {
 
         anim.update(0.6); // Should loop
         assert!(anim.progress() < 0.5);
+    }
+
+    /// One NaN dt frame must not make every item's value NaN forever and
+    /// pin `is_complete` at false.
+    #[test]
+    fn nan_dt_does_not_poison_staggered() {
+        let mut anim = StaggeredAnimation::new(0.0_f32, 1.0, 5, 0.1, 0.3);
+        anim.update(f32::NAN);
+        anim.update(-1.0);
+        assert!(anim.value(0).is_finite());
+        for _ in 0..60 {
+            anim.update(1.0 / 60.0);
+        }
+        assert!(anim.is_complete());
+        assert!((anim.value(4) - 1.0).abs() < 1.0e-6);
+    }
+
+    /// Constructor knobs are sanitized at the boundary; poisoned pub
+    /// fields fall back at the read sites.
+    #[test]
+    fn nan_knobs_do_not_poison() {
+        let mut anim = StaggeredAnimation::new(0.0_f32, 1.0, 5, f32::NAN, f32::INFINITY);
+        assert_eq!(anim.stagger_delay, 0.0);
+        assert_eq!(anim.duration, 0.3);
+        for step in 0..30 {
+            anim.update(1.0 / 60.0);
+            assert!(anim.progress(4 - step % 5).is_finite());
+        }
+        assert!(anim.is_complete());
+
+        // Direct field poisoning: reads stay sane even before a heal
+        // (elapsed 0.5s against the healed 0.3s duration = complete).
+        anim.base_delay = f32::NAN;
+        anim.duration = f32::NAN;
+        assert!(anim.value(0).is_finite());
+        assert!(anim.progress(0).is_finite());
+        assert!(anim.is_complete());
+    }
+
+    /// The sequence drives inner animations by absolute time, so one NaN
+    /// dt would write NaN straight past the inner guard.
+    #[test]
+    fn nan_dt_does_not_poison_sequence() {
+        let mut seq = AnimationSequence::new().then(Animation::new(0.0_f32, 1.0, 0.3), 0.0);
+        seq.update(f32::NAN);
+        assert!(seq.value().is_finite());
+        for _ in 0..30 {
+            seq.update(1.0 / 60.0);
+        }
+        assert!(seq.is_complete());
+        assert!((seq.value() - 1.0).abs() < 1.0e-6);
     }
 }
