@@ -3,16 +3,14 @@
 //! Provides tools for creating aceternity-style staggered animations where
 //! multiple elements animate with sequential delays.
 
-use super::{sanitize_duration, Animation, AnimationState, EasingFunction, Interpolate};
+use super::{
+    non_negative_dt, sanitize_duration, Animation, AnimationState, EasingFunction, Interpolate,
+};
 
 /// A non-finite delay collapses to "no delay" (the items animate
 /// together) instead of poisoning every item window.
 const fn sanitize_delay(raw: f32) -> f32 {
-    if raw.is_finite() {
-        raw
-    } else {
-        0.0
-    }
+    crate::sanitize::finite_or(raw, 0.0)
 }
 
 /// Staggered animation system for multiple items
@@ -77,12 +75,12 @@ impl<T: Interpolate> StaggeredAnimation<T> {
 
     /// Set the base delay before first item
     ///
-    /// A non-finite delay is ignored (kept at the previous value).
+    /// A non-finite delay collapses to "no delay" — the same policy as
+    /// the constructor, so a caller bug lands somewhere visible instead
+    /// of being silently ignored.
     #[must_use]
     pub const fn base_delay(mut self, delay: f32) -> Self {
-        if delay.is_finite() {
-            self.base_delay = delay;
-        }
+        self.base_delay = sanitize_delay(delay);
         self
     }
 
@@ -95,16 +93,13 @@ impl<T: Interpolate> StaggeredAnimation<T> {
 
     /// Update the animation
     ///
-    /// A non-finite or negative dt advances nothing (the same dt policy
-    /// as every other animator); a valid dt also heals non-finite knob
-    /// fields.
+    /// A non-finite or negative dt advances nothing (the shared dt
+    /// policy of every timed animator). The knob fields stay as written:
+    /// every read path sanitizes through [`Self::sane_knobs`].
     pub fn update(&mut self, dt: f32) {
-        if !dt.is_finite() || dt < 0.0 {
+        if !non_negative_dt(dt) {
             return;
         }
-        self.duration = sanitize_duration(self.duration);
-        self.stagger_delay = sanitize_delay(self.stagger_delay);
-        self.base_delay = sanitize_delay(self.base_delay);
         self.elapsed += dt;
     }
 
@@ -162,9 +157,16 @@ impl<T: Interpolate> StaggeredAnimation<T> {
     }
 
     /// Check if all items have completed
+    ///
+    /// An animation with no items is trivially complete (and
+    /// `item_count - 1` would underflow).
     pub fn is_complete(&self) -> bool {
+        if self.item_count == 0 {
+            return true;
+        }
         let (base_delay, stagger_delay, duration) = self.sane_knobs();
-        let last_item_end = base_delay + ((self.item_count - 1) as f32 * stagger_delay) + duration;
+        let last_item = self.item_count.saturating_sub(1) as f32;
+        let last_item_end = base_delay + (last_item * stagger_delay) + duration;
         self.elapsed >= last_item_end
     }
 
@@ -244,7 +246,7 @@ impl<T: Interpolate> AnimationSequence<T> {
         if self.current_step >= self.animations.len() {
             return;
         }
-        if !dt.is_finite() || dt < 0.0 {
+        if !non_negative_dt(dt) {
             return;
         }
 
@@ -268,19 +270,22 @@ impl<T: Interpolate> AnimationSequence<T> {
     }
 
     /// Get the current value
+    ///
+    /// # Panics
+    ///
+    /// If the sequence has no steps there is no value to hold; check
+    /// [`Self::is_complete`] (true for an empty sequence) before reading.
     #[must_use]
     pub fn value(&self) -> T {
-        if self.current_step >= self.animations.len() {
-            // Return the last animation's end value
-            if let Some(last) = self.animations.last() {
-                return last.animation.end.clone();
-            }
+        if let Some(step) = self.animations.get(self.current_step) {
+            return step.animation.value();
         }
-
-        self.animations.get(self.current_step).map_or_else(
-            || self.animations[0].animation.start.clone(),
-            |step| step.animation.value(),
-        )
+        // Finished: hold the last animation's end value.
+        let last = self
+            .animations
+            .last()
+            .expect("value() on an empty AnimationSequence");
+        last.animation.end.clone()
     }
 
     /// Check if the entire sequence is complete
@@ -477,5 +482,34 @@ mod tests {
         }
         assert!(seq.is_complete());
         assert!((seq.value() - 1.0).abs() < 1.0e-6);
+    }
+
+    /// `item_count - 1` underflowed (panic in debug, a wrapped ~1e18
+    /// window in release pinning `is_complete` false forever).
+    #[test]
+    fn empty_staggered_is_trivially_complete() {
+        let mut anim = StaggeredAnimation::new(0.0_f32, 1.0, 0, 0.1, 0.3);
+        assert!(anim.is_complete());
+        anim.update(1.0 / 60.0);
+        assert!(anim.is_complete());
+    }
+
+    /// An empty sequence has no value to hold; the panic is an explicit,
+    /// documented contract rather than an accidental index.
+    #[test]
+    #[should_panic(expected = "empty AnimationSequence")]
+    fn empty_sequence_value_panics_explicitly() {
+        let seq: AnimationSequence<f32> = AnimationSequence::new();
+        let _ = seq.value();
+    }
+
+    /// The `base_delay` builder collapses garbage like the constructor
+    /// does, instead of silently keeping the previous value.
+    #[test]
+    fn base_delay_garbage_collapses_to_no_delay() {
+        let anim = StaggeredAnimation::new(0.0_f32, 1.0, 5, 0.1, 0.3)
+            .base_delay(f32::NAN)
+            .base_delay(f32::INFINITY);
+        assert_eq!(anim.base_delay, 0.0);
     }
 }

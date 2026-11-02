@@ -121,20 +121,19 @@ impl<T: Interpolate> Animation<T> {
     ///
     /// A non-finite dt (whose NaN would make `elapsed` — and therefore
     /// every later `value()` — NaN forever) advances nothing; a negative
-    /// dt likewise never rewinds the clock. On a valid dt a non-finite
-    /// duration field is healed to the default.
+    /// dt likewise never rewinds the clock. A non-finite `duration` field
+    /// stays as written — every read sanitizes through `sane_duration`.
     pub fn update(&mut self, dt: f32) {
         if self.state != AnimationState::Running {
             return;
         }
-        if !dt.is_finite() || dt < 0.0 {
+        if !non_negative_dt(dt) {
             return;
         }
-        self.duration = self.sane_duration();
 
         self.elapsed += dt;
-        if self.elapsed >= self.duration {
-            self.elapsed = self.duration;
+        if self.elapsed >= self.sane_duration() {
+            self.elapsed = self.sane_duration();
             self.state = AnimationState::Completed;
         }
     }
@@ -234,11 +233,25 @@ const DEFAULT_DURATION: f32 = 0.3;
 /// A timed animation's duration must be finite; zero and negative stay
 /// legal (they mean "already complete").
 const fn sanitize_duration(raw: f32) -> f32 {
-    if raw.is_finite() {
-        raw
-    } else {
-        DEFAULT_DURATION
-    }
+    crate::sanitize::finite_or(raw, DEFAULT_DURATION)
+}
+
+/// A dt that advances the timed animators: finite and non-negative (zero
+/// is a legal no-op frame). One shared predicate instead of per-animator
+/// copies drifting apart.
+pub(crate) const fn non_negative_dt(dt: f32) -> bool {
+    dt.is_finite() && dt >= 0.0
+}
+
+/// A dt that advances the physics animators: finite and strictly
+/// positive (a zero step integrates nothing).
+pub(crate) const fn positive_dt(dt: f32) -> bool {
+    dt.is_finite() && dt > 0.0
+}
+
+/// [`positive_dt`] for the f64 animator (momentum).
+pub(crate) const fn positive_dt_f64(dt: f64) -> bool {
+    dt.is_finite() && dt > 0.0
 }
 
 /// Spring parameters share the width-knob boundary policy (finite
@@ -318,7 +331,7 @@ impl SpringAnimation {
     /// [`SpringAnimation::params`] and, the fields being public,
     /// re-sanitized here.
     pub fn update(&mut self, dt: f32) {
-        if !dt.is_finite() || dt <= 0.0 {
+        if !positive_dt(dt) {
             return;
         }
         // Heal poisoned state: a NaN target adopts the current position,
@@ -824,15 +837,18 @@ mod timed_animation_dt_tests {
         assert!(anim.is_complete());
         assert!((anim.value() - 1.0).abs() < 1.0e-6);
 
-        // A poisoned field keeps value() sane even before the next update
-        // heals it; the garbage dt itself must still be a no-op.
+        // A poisoned field keeps value() sane (reads sanitize); the field
+        // itself stays as written, and a garbage dt is still a no-op.
         anim.duration = f32::INFINITY;
         anim.reset();
         anim.start();
         anim.update(f32::NAN);
         assert_eq!(anim.duration, f32::INFINITY);
         assert!(anim.value().is_finite());
+        assert_eq!(anim.progress(), 0.0);
         anim.update(1.0 / 60.0);
-        assert_eq!(anim.duration, 0.3);
+        assert!(anim.value().is_finite());
+        assert!(anim.progress() > 0.0);
+        assert!(!anim.is_complete());
     }
 }

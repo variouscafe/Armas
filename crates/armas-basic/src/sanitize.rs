@@ -25,6 +25,17 @@ pub const fn finite_at_least_or(raw: f32, min: f32, default: f32) -> f32 {
     }
 }
 
+/// A finite value passes through; anything else (NaN, ±∞) falls back to
+/// `default` — for knobs with no sign constraint (e.g. durations and
+/// delays, where negative values are legal).
+pub const fn finite_or(raw: f32, default: f32) -> f32 {
+    if raw.is_finite() {
+        raw
+    } else {
+        default
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -51,5 +62,14 @@ mod tests {
         assert_eq!(finite_at_least_or(f32::NAN, 0.0, 20.0), 20.0);
         assert_eq!(finite_at_least_or(-0.1, 0.0, 20.0), 20.0);
         assert_eq!(finite_at_least_or(f32::INFINITY, 0.0, 20.0), 20.0);
+    }
+
+    #[test]
+    fn sign_free_passes_negatives() {
+        assert_eq!(finite_or(-0.5, 0.3), -0.5);
+        assert_eq!(finite_or(0.0, 0.3), 0.0);
+        assert_eq!(finite_or(f32::NAN, 0.3), 0.3);
+        assert_eq!(finite_or(f32::INFINITY, 0.3), 0.3);
+        assert_eq!(finite_or(f32::NEG_INFINITY, 0.3), 0.3);
     }
 }

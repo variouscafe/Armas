@@ -319,7 +319,7 @@ impl<B: MomentumBehavior> MomentumPosition<B> {
         if self.is_dragging || !self.is_animating {
             return false;
         }
-        if !dt.is_finite() || dt <= 0.0 {
+        if !super::positive_dt_f64(dt) {
             return false;
         }
 

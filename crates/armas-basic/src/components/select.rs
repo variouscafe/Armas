@@ -389,7 +389,10 @@ impl Select {
 
     fn show_trigger(&self, ui: &mut Ui, theme: &Theme, width: f32) -> (Rect, Response) {
         let avail_h = ui.available_height();
-        let default_h = sanitize_width(avail_h, TRIGGER_HEIGHT).min(TRIGGER_HEIGHT);
+        // A height knob: the width-knob wrapper would be the wrong name,
+        // so use the general finite-positive policy directly.
+        let default_h =
+            crate::sanitize::finite_above_or(avail_h, 0.0, TRIGGER_HEIGHT).min(TRIGGER_HEIGHT);
         let height = self.custom_height.unwrap_or(default_h);
         let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
 
