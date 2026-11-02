@@ -66,9 +66,9 @@ pub struct SidebarState {
     expanded_groups: std::collections::HashMap<String, bool>,
     /// Currently active item index
     active_index: Option<usize>,
-    /// Widths the spring animates between; kept in sync with the
-    /// [`Sidebar`] width knobs by `set_widths` so the targets follow the
-    /// knobs instead of the module defaults.
+    /// Widths the spring animates between. The [`Sidebar`] width knobs
+    /// override them whenever they are set; unset knobs leave them
+    /// untouched (see `set_collapsed_width`/`set_expanded_width`).
     collapsed_width: f32,
     expanded_width: f32,
 }
@@ -545,6 +545,13 @@ impl<'a> Sidebar<'a> {
         if let Some(w) = self.expanded_width {
             state.set_expanded_width(w);
         }
+
+        // All layout math below must use the bounds the spring actually
+        // animates between - the state's widths (knob-synced just above
+        // when knobs are set), not the knob-or-default locals that seeded
+        // the uncontrolled state.
+        let collapsed_width = state.collapsed_width;
+        let expanded_width = state.expanded_width;
 
         // Update spring animation
         state.width_spring.update(dt);

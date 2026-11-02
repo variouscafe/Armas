@@ -91,14 +91,13 @@ type Page = (&'static str, PageShowFn);
 
 struct ShowcaseApp {
     theme: AppTheme,
-    /// Last egui mode seen by the system-follow branch of `ui`. Until the
-    /// user pins a theme with a manual toggle the app follows the system
-    /// theme, which on wasm only reaches egui AFTER `new` returns (eframe
-    /// applies the browser theme on the first pass) and can change at
-    /// runtime (OS theme switch), so `ui` watches the mode and re-styles
-    /// when it moves. Only meaningful (and kept in sync) while the source
-    /// is `ThemeSource::System`.
-    last_mode: egui::Theme,
+    /// Last egui mode the system-follow branch has seen. Starts `None` so
+    /// the FIRST ui() pass always re-derives the theme from the actual
+    /// mode - `cc.egui_ctx.theme()` at `new()` time can resolve System to
+    /// the Dark fallback (or, with persistence enabled, to a stale
+    /// restored system theme) depending on when the real theme arrives.
+    /// Only meaningful while the source is `ThemeSource::System`.
+    last_mode: Option<egui::Theme>,
     /// Where the effective theme comes from: the system theme, or a user
     /// pin reached by cycling the header toggle (System → Light → Dark →
     /// System — the toggle icon depicts the NEXT state).
@@ -168,11 +167,10 @@ impl ShowcaseApp {
             .and_then(ThemeSource::parse)
             .unwrap_or(ThemeSource::System);
 
-        let (mode, theme) = match theme_source {
-            ThemeSource::System => {
-                let mode = cc.egui_ctx.theme();
-                (mode, Self::theme_for_mode(mode))
-            }
+        let theme = match theme_source {
+            // Best guess only - the follow branch re-derives from the real
+            // mode on the first ui() pass (see `last_mode`).
+            ThemeSource::System => Self::theme_for_mode(cc.egui_ctx.theme()),
             source => {
                 let theme = if source == ThemeSource::Light {
                     AppTheme::light()
@@ -182,7 +180,7 @@ impl ShowcaseApp {
                 // A restored pin also drives the egui preference so the
                 // mode and the tint agree from the first frame.
                 cc.egui_ctx.set_theme(Self::preference_for(&theme));
-                (Self::mode_for(&theme), theme)
+                theme
             }
         };
 
@@ -194,7 +192,7 @@ impl ShowcaseApp {
 
         Self {
             theme,
-            last_mode: mode,
+            last_mode: None,
             theme_source,
             search_text: String::new(),
             page_state,
@@ -258,7 +256,7 @@ impl ShowcaseApp {
             ThemeSource::System => {
                 ctx.set_theme(egui::ThemePreference::System);
                 let mode = ctx.theme();
-                self.last_mode = mode;
+                self.last_mode = Some(mode);
                 self.theme = Self::theme_for_mode(mode);
             }
             ThemeSource::Light | ThemeSource::Dark => {
@@ -267,7 +265,7 @@ impl ShowcaseApp {
                 } else {
                     AppTheme::light()
                 };
-                self.last_mode = Self::mode_for(&self.theme);
+                self.last_mode = Some(Self::mode_for(&self.theme));
                 ctx.set_theme(Self::preference_for(&self.theme));
             }
         }
@@ -361,8 +359,8 @@ impl eframe::App for ShowcaseApp {
         // System so egui keeps tracking the OS/browser theme; we only
         // re-style ours to match.
         let mode = ui.ctx().theme();
-        if self.theme_source == ThemeSource::System && mode != self.last_mode {
-            self.last_mode = mode;
+        if self.theme_source == ThemeSource::System && self.last_mode != Some(mode) {
+            self.last_mode = Some(mode);
             self.theme = Self::theme_for_mode(mode);
             let ctx = ui.ctx();
             Self::apply_theme(&self.theme, ctx);
@@ -402,6 +400,14 @@ impl eframe::App for ShowcaseApp {
     /// eframe calls this on autosave and on exit).
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         storage.set_string(THEME_KEY, self.theme_source.as_str().to_owned());
+    }
+
+    /// Only the theme source is persisted. egui's own memory would both
+    /// fight the app's theme authority (a restored theme preference) and
+    /// share the per-origin "egui_memory_ron" localStorage key with every
+    /// other eframe app on the same origin.
+    fn persist_egui_memory(&self) -> bool {
+        false
     }
 }
 
