@@ -201,11 +201,16 @@ pub(crate) const fn sanitize_opt_value(raw: f32) -> Option<f32> {
     }
 }
 
-/// Domain-bound pairs (slider ranges): garbage falls back per side, and
-/// an inverted pair is swapped so `min <= max` always holds.
+/// Domain-bound pairs (slider ranges): one-sided garbage heals around
+/// the surviving bound (a 1.0 span), double garbage falls back to
+/// 0..=1, and an inverted pair is swapped so `min <= max` always holds.
 pub(crate) const fn sanitize_bounds(min: f32, max: f32) -> (f32, f32) {
-    let min = crate::sanitize::finite_or(min, 0.0);
-    let max = crate::sanitize::finite_or(max, 1.0);
+    let (min, max) = match (min.is_finite(), max.is_finite()) {
+        (true, true) => (min, max),
+        (true, false) => (min, min + 1.0),
+        (false, true) => (max - 1.0, max),
+        (false, false) => (0.0, 1.0),
+    };
     if min <= max {
         (min, max)
     } else {
@@ -213,8 +218,42 @@ pub(crate) const fn sanitize_bounds(min: f32, max: f32) -> (f32, f32) {
     }
 }
 
+/// Percent knobs: NaN reads as empty (0%), everything else saturates
+/// at the ends like a clamp (±∞ included).
+pub(crate) const fn sanitize_percent(raw: f32) -> f32 {
+    if raw.is_nan() {
+        0.0
+    } else if raw > 100.0 {
+        100.0
+    } else if raw < 0.0 {
+        0.0
+    } else {
+        raw
+    }
+}
+
+/// Signed rates (rotation speed): any finite value passes (negative
+/// spins the other way); garbage keeps the current value.
+pub(crate) const fn sanitize_rate(raw: f32, default: f32) -> f32 {
+    crate::sanitize::finite_or(raw, default)
+}
+
+/// [`sanitize_percent`] for 0..=1 fractions.
+pub(crate) const fn sanitize_fraction(raw: f32) -> f32 {
+    if raw.is_nan() {
+        0.0
+    } else if raw > 1.0 {
+        1.0
+    } else if raw < 0.0 {
+        0.0
+    } else {
+        raw
+    }
+}
+
 /// Shared default for the plain-f32 width knobs whose constructors use
-/// 200pt (context menu, dropdown menu, slider, range slider).
+/// 200pt (context menu, dropdown menu, slider, range slider, menubar
+/// trigger).
 pub(crate) const DEFAULT_WIDTH: f32 = 200.0;
 
 #[cfg(test)]
@@ -267,10 +306,25 @@ mod sanitize_tests {
         assert_eq!(sanitize_opt_radius(12.0), Some(12.0));
         assert_eq!(sanitize_opt_radius(f32::NAN), None);
         assert_eq!(sanitize_opt_value(-5.0), Some(-5.0));
+        // Percent/fraction: NaN reads as empty, ±∞ saturate like clamp.
+        assert_eq!(sanitize_percent(f32::NAN), 0.0);
+        assert_eq!(sanitize_percent(f32::INFINITY), 100.0);
+        assert_eq!(sanitize_percent(f32::NEG_INFINITY), 0.0);
+        assert_eq!(sanitize_percent(60.0), 60.0);
+        assert_eq!(sanitize_fraction(f32::NAN), 0.0);
+        assert_eq!(sanitize_fraction(f32::INFINITY), 1.0);
+        assert_eq!(sanitize_fraction(-0.5), 0.0);
+        // Rates are signed: negative spins the other way.
+        assert_eq!(sanitize_rate(-3.0, 1.0), -3.0);
+        assert_eq!(sanitize_rate(f32::NAN, 1.0), 1.0);
         assert_eq!(sanitize_opt_value(f32::INFINITY), None);
         assert_eq!(sanitize_bounds(2.0, 8.0), (2.0, 8.0));
         assert_eq!(sanitize_bounds(8.0, 2.0), (2.0, 8.0));
         assert_eq!(sanitize_bounds(f32::NAN, f32::NAN), (0.0, 1.0));
+        // One-sided garbage heals around the surviving bound — the
+        // caller's explicit bound is never contradicted.
+        assert_eq!(sanitize_bounds(5.0, f32::NAN), (5.0, 6.0));
+        assert_eq!(sanitize_bounds(f32::NAN, 5.0), (4.0, 5.0));
     }
 }
 
@@ -280,12 +334,50 @@ mod sanitize_tests {
 /// the component sources so a new raw knob cannot slip in silently.
 #[cfg(test)]
 mod knob_inventory_tests {
-    /// Builders deliberately raw, with reasons:
-    /// - `font_size` (input.rs): a no-op backwards-compat alias that
+    /// Builders deliberately raw, as `file: name` pairs with reasons:
+    /// - `input.rs: font_size`: a no-op backwards-compat alias that
     ///   ignores its argument.
-    /// - `set_widths` (sidebar.rs): delegates to the sanitizing
+    /// - `sidebar.rs: set_widths`: delegates to the sanitizing
     ///   per-field setters.
-    const ALLOWED_RAW: &[&str] = &["font_size", "set_widths"];
+    const ALLOWED_RAW: &[&str] = &["input.rs: font_size", "sidebar.rs: set_widths"];
+
+    /// Strip line/block comments so a body can only satisfy the scan by
+    /// *calling* a sanitizer, not by mentioning one in prose.
+    fn without_comments(src: &str) -> String {
+        let mut out = String::with_capacity(src.len());
+        let mut in_block = false;
+        for line in src.lines() {
+            let trimmed = line.trim_start();
+            if in_block {
+                if let Some(end) = line.find("*/") {
+                    out.push_str(&line[end + 2..]);
+                    in_block = false;
+                }
+                continue;
+            }
+            if trimmed.starts_with("///") || trimmed.starts_with("//!") {
+                continue;
+            }
+            if trimmed.starts_with("/*") {
+                if !trimmed.starts_with("/**") || trimmed.contains("*/") {
+                    // non-doc block, or single-line block — drop it
+                    if let Some(endrel) = line.find("*/") {
+                        out.push_str(&line[endrel + 2..]);
+                    }
+                } else {
+                    in_block = true;
+                }
+                continue;
+            }
+            if let Some(cut) = line.find("//") {
+                out.push_str(&line[..cut]);
+            } else {
+                out.push_str(line);
+            }
+            out.push('\n');
+        }
+        out
+    }
 
     #[test]
     fn every_f32_builder_sanitizes_or_is_allowlisted() {
@@ -299,7 +391,7 @@ mod knob_inventory_tests {
             if !file.to_lowercase().ends_with(".rs") || file == "mod.rs" {
                 continue;
             }
-            let src = std::fs::read_to_string(&path).unwrap();
+            let src = without_comments(&std::fs::read_to_string(&path).unwrap());
             let mut i = 0usize;
             loop {
                 let next = [src[i..].find("pub const fn "), src[i..].find("pub fn ")]
@@ -308,19 +400,25 @@ mod knob_inventory_tests {
                     .min();
                 let Some(rel) = next else { break };
                 let fn_start = i + rel;
-                // function name
                 let name_start = fn_start + src[fn_start..].find("fn ").unwrap() + 3;
                 let name_end = name_start + src[name_start..].find('(').unwrap();
                 let name = src[name_start..name_end].to_string();
-                // argument span
                 let args_open = name_end;
                 let args_close = args_open + src[args_open..].find(')').unwrap();
                 let args = &src[args_open..args_close];
-                // body span: from the first '{' after the signature to its match
-                let Some(brace_rel) = src[args_close..].find('{') else {
-                    break;
+
+                // A bodyless signature (trait method, `;`-terminated)
+                // must skip, not stop, the scan of this file.
+                let brace = src[args_close..].find('{');
+                let semi = src[args_close..].find(';');
+                let body_open = match (brace, semi) {
+                    (Some(b), Some(s)) if s < b => {
+                        i = args_close + s + 1;
+                        continue;
+                    }
+                    (Some(b), _) => args_close + b,
+                    (None, _) => break,
                 };
-                let body_open = args_close + brace_rel;
                 let mut depth = 1usize;
                 let mut j = body_open + 1;
                 while depth > 0 && j < src.len() {
@@ -334,8 +432,9 @@ mod knob_inventory_tests {
                 let body = &src[body_open..j];
                 if args.contains(": f32") {
                     builders += 1;
-                    if !body.contains("sanitize") && !ALLOWED_RAW.contains(&name.as_str()) {
-                        offenders.push(format!("{file}: {name}"));
+                    let key = format!("{file}: {name}");
+                    if !body.contains("sanitize_") && !ALLOWED_RAW.contains(&key.as_str()) {
+                        offenders.push(key);
                     }
                 }
                 i = j;

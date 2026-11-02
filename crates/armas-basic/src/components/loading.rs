@@ -6,7 +6,7 @@
 //! - Skeleton: Content placeholder with shimmer
 
 use super::sanitize_size;
-use super::{sanitize_height, sanitize_opt_radius, sanitize_padding, sanitize_width};
+use super::{sanitize_height, sanitize_opt_radius, sanitize_rate, sanitize_width};
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Pos2, Rect, Response, Ui, Vec2};
 use std::f32::consts::PI;
@@ -87,7 +87,7 @@ impl Spinner {
     /// Set the rotation speed (in radians per second)
     #[must_use]
     pub const fn speed(mut self, speed: f32) -> Self {
-        self.speed = sanitize_padding(speed, self.speed);
+        self.speed = sanitize_rate(speed, self.speed);
         self
     }
 
@@ -158,6 +158,12 @@ impl Spinner {
 
 /// Skeleton loader for placeholder content
 ///
+/// Shimmer-width fraction: garbage falls back to 0.3, and sane values
+/// clamp into [0.1, 1.0] (a bare clamp would pass NaN through).
+const fn sanitize_shimmer(raw: f32) -> f32 {
+    crate::sanitize::finite_or(raw, 0.3).clamp(0.1, 1.0)
+}
+
 /// Fallbacks for a garbage-sized skeleton (unmeasured container).
 const DEFAULT_SKELETON_WIDTH: f32 = 200.0;
 const DEFAULT_SKELETON_HEIGHT: f32 = 20.0;
@@ -228,7 +234,7 @@ impl Skeleton {
     /// Set the animation speed
     #[must_use]
     pub const fn speed(mut self, speed: f32) -> Self {
-        self.speed = sanitize_padding(speed, self.speed);
+        self.speed = sanitize_rate(speed, self.speed);
         self
     }
 
@@ -242,8 +248,7 @@ impl Skeleton {
     /// Set the shimmer width (as a fraction of total width)
     #[must_use]
     pub const fn shimmer_width(mut self, width: f32) -> Self {
-        // sanitize first: a bare clamp passes NaN straight through.
-        self.shimmer_width = crate::sanitize::finite_or(width, 0.3).clamp(0.1, 1.0);
+        self.shimmer_width = sanitize_shimmer(width);
         self
     }
 
@@ -329,5 +334,16 @@ mod size_knob_tests {
         let default = Spinner::new().size;
         assert_eq!(Spinner::new().size(f32::NAN).size, default);
         assert_eq!(Spinner::new().size(36.0).size, 36.0);
+    }
+
+    /// Speed is signed — negative spins the other way — and garbage
+    /// keeps the current value.
+    #[test]
+    fn rate_knobs_are_signed() {
+        let default = Spinner::new().speed;
+        assert_eq!(Spinner::new().speed(f32::NAN).speed, default);
+        assert_eq!(Spinner::new().speed(-3.0).speed, -3.0);
+        let default = Skeleton::new(200.0, 20.0).speed;
+        assert_eq!(Skeleton::new(200.0, 20.0).speed(f32::NAN).speed, default);
     }
 }

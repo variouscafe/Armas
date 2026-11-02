@@ -5,7 +5,7 @@
 //! - Progress: Simple horizontal progress bar (shadcn style)
 //! - `CircularProgressBar`: Circular/spinner progress
 
-use super::{sanitize_height, sanitize_opt_width, sanitize_size};
+use super::{sanitize_height, sanitize_opt_width, sanitize_percent, sanitize_size};
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Pos2, Ui, Vec2};
 use std::f32::consts::PI;
@@ -51,7 +51,7 @@ impl Progress {
     #[must_use]
     pub const fn new(value: f32) -> Self {
         Self {
-            value: crate::sanitize::finite_or(value, 0.0).clamp(0.0, 100.0),
+            value: sanitize_percent(value),
             width: None,
             height: PROGRESS_HEIGHT,
         }
@@ -153,7 +153,7 @@ impl CircularProgressBar {
     #[must_use]
     pub const fn new(value: f32) -> Self {
         Self {
-            value: Some(crate::sanitize::finite_or(value, 0.0).clamp(0.0, 100.0)),
+            value: Some(sanitize_percent(value)),
             size: CIRCULAR_SIZE,
             stroke_width: CIRCULAR_STROKE,
             show_percentage: false,
@@ -327,11 +327,13 @@ mod size_knob_tests {
 mod value_knob_tests {
     use super::*;
 
-    /// A NaN value would sail through a bare clamp into every paint.
+    /// A NaN value would sail through a bare clamp into every paint;
+    /// ±∞ saturate like clamp (a full bar stays full, not empty).
     #[test]
     fn nan_value_falls_back_to_zero() {
         assert_eq!(Progress::new(f32::NAN).value, 0.0);
-        assert_eq!(Progress::new(f32::INFINITY).value, 0.0);
+        assert_eq!(Progress::new(f32::INFINITY).value, 100.0);
+        assert_eq!(Progress::new(f32::NEG_INFINITY).value, 0.0);
         assert_eq!(Progress::new(60.0).value, 60.0);
     }
 }

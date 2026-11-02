@@ -413,8 +413,12 @@ impl NumberField {
 
             // Commit on Enter or lost focus
             if edit_response.lost_focus() {
+                // f32 FromStr accepts "NaN"/"inf" — a non-finite parse
+                // keeps the previous value instead of poisoning it.
                 if let Ok(parsed) = text_buf.parse::<f32>() {
-                    *value = self.clamp_value(parsed);
+                    if parsed.is_finite() {
+                        *value = self.clamp_value(parsed);
+                    }
                 }
                 ui.ctx().data_mut(|d| {
                     d.insert_temp(text_id, false);

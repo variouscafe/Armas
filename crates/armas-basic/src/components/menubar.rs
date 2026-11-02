@@ -25,6 +25,7 @@
 
 use super::content::ContentContext;
 use super::dropdown_menu::{DropdownMenu, MenuBuilder};
+use super::{sanitize_width, DEFAULT_WIDTH};
 use egui::{Id, Rect, Sense, Stroke, Ui};
 
 // Constants matching shadcn menubar
@@ -101,7 +102,7 @@ impl MenubarBuilder {
         content(&mut builder);
         self.entries.push(MenuEntry {
             trigger: MenuTrigger::Custom {
-                width: super::sanitize_width(trigger_width, super::DEFAULT_WIDTH),
+                width: sanitize_width(trigger_width, DEFAULT_WIDTH),
                 render: Box::new(trigger),
             },
             items: builder.into_items(),
