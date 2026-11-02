@@ -14,7 +14,7 @@ path = "src/main.rs"
 armas = { path = "../armas" }
 armas-audio = { path = "../armas-audio" }
 armas-showcase-macros = { path = "../armas-showcase-macros" }
-eframe = { workspace = true, features = ["default", "wgpu"] }
+eframe = { workspace = true, features = ["default", "persistence", "wgpu"] }
 egui = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

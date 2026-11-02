@@ -156,7 +156,7 @@ impl ThemeSource {
 
 /// eframe storage key for the persisted theme source (a file on native,
 /// localStorage on wasm — eframe provides both behind the same API).
-const THEME_KEY: &str = "theme_source";
+const THEME_KEY: &str = "armas_theme_source";
 
 impl ShowcaseApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -181,12 +181,8 @@ impl ShowcaseApp {
                 };
                 // A restored pin also drives the egui preference so the
                 // mode and the tint agree from the first frame.
-                cc.egui_ctx.set_theme(if theme.is_dark() {
-                    egui::ThemePreference::Dark
-                } else {
-                    egui::ThemePreference::Light
-                });
-                (cc.egui_ctx.theme(), theme)
+                cc.egui_ctx.set_theme(Self::preference_for(&theme));
+                (Self::mode_for(&theme), theme)
             }
         };
 
@@ -264,7 +260,6 @@ impl ShowcaseApp {
                 let mode = ctx.theme();
                 self.last_mode = mode;
                 self.theme = Self::theme_for_mode(mode);
-                Self::apply_theme(&self.theme, ctx);
             }
             ThemeSource::Light | ThemeSource::Dark => {
                 self.theme = if self.theme_source == ThemeSource::Dark {
@@ -272,19 +267,11 @@ impl ShowcaseApp {
                 } else {
                     AppTheme::light()
                 };
-                self.last_mode = if self.theme.is_dark() {
-                    egui::Theme::Dark
-                } else {
-                    egui::Theme::Light
-                };
-                ctx.set_theme(if self.theme.is_dark() {
-                    egui::ThemePreference::Dark
-                } else {
-                    egui::ThemePreference::Light
-                });
-                Self::apply_theme(&self.theme, ctx);
+                self.last_mode = Self::mode_for(&self.theme);
+                ctx.set_theme(Self::preference_for(&self.theme));
             }
         }
+        Self::apply_theme(&self.theme, ctx);
     }
 
     /// Map an egui theme mode to the matching [`AppTheme`].
@@ -293,6 +280,25 @@ impl ShowcaseApp {
             AppTheme::dark()
         } else {
             AppTheme::light()
+        }
+    }
+
+    /// Map an [`AppTheme`] to the egui theme preference (the forward of
+    /// [`Self::theme_for_mode`]).
+    fn preference_for(theme: &AppTheme) -> egui::ThemePreference {
+        if theme.is_dark() {
+            egui::ThemePreference::Dark
+        } else {
+            egui::ThemePreference::Light
+        }
+    }
+
+    /// Map an [`AppTheme`] to the egui theme mode.
+    fn mode_for(theme: &AppTheme) -> egui::Theme {
+        if theme.is_dark() {
+            egui::Theme::Dark
+        } else {
+            egui::Theme::Light
         }
     }
 

@@ -29,7 +29,7 @@
 //! # }
 //! ```
 
-use super::sanitize_opt_width;
+use super::{sanitize_opt_width, sanitize_width};
 use crate::animation::SpringAnimation;
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
@@ -99,14 +99,26 @@ impl SidebarState {
         }
     }
 
-    /// Configure the widths the open/closed spring targets animate between
-    /// (defaults: 256 expanded / 48 collapsed). [`Sidebar`]'s
-    /// `.collapsed_width()`/`.expanded_width()` knobs apply this
-    /// automatically, including in controlled mode.
-    pub const fn set_widths(&mut self, collapsed: f32, expanded: f32) {
-        self.collapsed_width = collapsed;
-        self.expanded_width = expanded;
+    /// Set the collapsed width the spring animates to when closed (finite
+    /// positive; garbage falls back to the 48pt default). The
+    /// `.collapsed_width()` knob overrides this whenever it is set.
+    pub const fn set_collapsed_width(&mut self, width: f32) {
+        self.collapsed_width = sanitize_width(width, SIDEBAR_WIDTH_ICON);
         self.width_spring.set_target(self.target_width());
+    }
+
+    /// Set the expanded width the spring animates to when open (finite
+    /// positive; garbage falls back to the 256pt default). The
+    /// `.expanded_width()` knob overrides this whenever it is set.
+    pub const fn set_expanded_width(&mut self, width: f32) {
+        self.expanded_width = sanitize_width(width, SIDEBAR_WIDTH);
+        self.width_spring.set_target(self.target_width());
+    }
+
+    /// Set both widths (see the per-field setters).
+    pub const fn set_widths(&mut self, collapsed: f32, expanded: f32) {
+        self.set_collapsed_width(collapsed);
+        self.set_expanded_width(expanded);
     }
 
     const fn target_width(&self) -> f32 {
@@ -524,10 +536,15 @@ impl<'a> Sidebar<'a> {
             .as_deref_mut()
             .map_or(&mut internal_state, |ext| ext);
 
-        // Propagate the configured widths into the state (controlled mode
-        // constructs its state before these knobs are known; for the
-        // uncontrolled state this is idempotent).
-        state.set_widths(collapsed_width, expanded_width);
+        // Knobs (when set) take precedence over the state's stored widths;
+        // unset knobs leave the state untouched, so controlled-mode callers
+        // can drive the widths via SidebarState directly instead.
+        if let Some(w) = self.collapsed_width {
+            state.set_collapsed_width(w);
+        }
+        if let Some(w) = self.expanded_width {
+            state.set_expanded_width(w);
+        }
 
         // Update spring animation
         state.width_spring.update(dt);
@@ -1002,5 +1019,30 @@ mod width_state_tests {
         // Distinct widths keep the width-derived ratio
         let mid = SidebarLayout::compute(178.0, 48.0, 256.0, rect, true);
         assert!((mid.expansion_ratio - 0.625).abs() < 1e-4);
+    }
+}
+
+#[cfg(test)]
+mod width_sanitize_tests {
+    use super::*;
+
+    /// The state setters sanitize at the boundary like every other width
+    /// knob: garbage falls back to the module defaults instead of NaN
+    /// spring targets.
+    #[test]
+    fn set_widths_sanitizes_garbage() {
+        let mut state = SidebarState::new(false);
+        state.set_widths(f32::NAN, f32::INFINITY);
+        assert_eq!(
+            state.width_spring.target, SIDEBAR_WIDTH_ICON,
+            "closed -> sanitized collapsed default"
+        );
+        state.set_open(true);
+        assert_eq!(
+            state.width_spring.target, SIDEBAR_WIDTH,
+            "open -> sanitized expanded default"
+        );
+        state.set_expanded_width(0.0);
+        assert_eq!(state.width_spring.target, SIDEBAR_WIDTH);
     }
 }
