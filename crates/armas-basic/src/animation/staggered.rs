@@ -158,15 +158,14 @@ impl<T: Interpolate> StaggeredAnimation<T> {
 
     /// Check if all items have completed
     ///
-    /// An animation with no items is trivially complete (and
-    /// `item_count - 1` would underflow).
+    /// An animation with no items is trivially complete (which also
+    /// guards the `item_count - 1` subtraction below).
     pub fn is_complete(&self) -> bool {
         if self.item_count == 0 {
             return true;
         }
         let (base_delay, stagger_delay, duration) = self.sane_knobs();
-        let last_item = self.item_count.saturating_sub(1) as f32;
-        let last_item_end = base_delay + (last_item * stagger_delay) + duration;
+        let last_item_end = base_delay + ((self.item_count - 1) as f32 * stagger_delay) + duration;
         self.elapsed >= last_item_end
     }
 
@@ -274,7 +273,8 @@ impl<T: Interpolate> AnimationSequence<T> {
     /// # Panics
     ///
     /// If the sequence has no steps there is no value to hold; check
-    /// [`Self::is_complete`] (true for an empty sequence) before reading.
+    /// [`Self::is_empty`] first ([`Self::is_complete`] is true for an
+    /// empty sequence too, so it cannot guard this).
     #[must_use]
     pub fn value(&self) -> T {
         if let Some(step) = self.animations.get(self.current_step) {
@@ -289,9 +289,18 @@ impl<T: Interpolate> AnimationSequence<T> {
     }
 
     /// Check if the entire sequence is complete
+    ///
+    /// True for an empty sequence as well — use [`Self::is_empty`] to
+    /// distinguish before calling [`Self::value`].
     #[must_use]
     pub const fn is_complete(&self) -> bool {
         self.current_step >= self.animations.len()
+    }
+
+    /// Check if the sequence has no steps
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.animations.is_empty()
     }
 
     /// Reset the sequence
@@ -495,11 +504,15 @@ mod tests {
     }
 
     /// An empty sequence has no value to hold; the panic is an explicit,
-    /// documented contract rather than an accidental index.
+    /// documented contract rather than an accidental index. `is_empty`
+    /// is the guard that actually distinguishes it (`is_complete` is
+    /// true for an empty sequence too).
     #[test]
     #[should_panic(expected = "empty AnimationSequence")]
     fn empty_sequence_value_panics_explicitly() {
         let seq: AnimationSequence<f32> = AnimationSequence::new();
+        assert!(seq.is_empty());
+        assert!(seq.is_complete());
         let _ = seq.value();
     }
 

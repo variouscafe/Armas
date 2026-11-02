@@ -52,6 +52,10 @@ pub struct Animation<T: Interpolate> {
     /// Target value
     pub end: T,
     /// Duration of the animation in seconds
+    ///
+    /// A knob, not state: garbage (NaN, ±∞) stays as written — direct
+    /// field readers get what they put in — while `value()`/`progress()`
+    /// sanitize it through the 0.3s default.
     pub duration: f32,
     /// Elapsed time in seconds
     pub elapsed: f32,
@@ -130,11 +134,26 @@ impl<T: Interpolate> Animation<T> {
         if !non_negative_dt(dt) {
             return;
         }
+        // Heal poisoned state (the pub field): a non-finite elapsed means
+        // no time has passed, not NaN forever.
+        if !self.elapsed.is_finite() {
+            self.elapsed = 0.0;
+        }
 
         self.elapsed += dt;
         if self.elapsed >= self.sane_duration() {
             self.elapsed = self.sane_duration();
             self.state = AnimationState::Completed;
+        }
+    }
+
+    /// The pub `elapsed` field healed for reads: non-finite counts as no
+    /// time having passed.
+    const fn sane_elapsed(&self) -> f32 {
+        if self.elapsed.is_finite() {
+            self.elapsed
+        } else {
+            0.0
         }
     }
 
@@ -144,7 +163,7 @@ impl<T: Interpolate> Animation<T> {
         let t = if duration <= 0.0 {
             1.0
         } else {
-            (self.elapsed / duration).clamp(0.0, 1.0)
+            (self.sane_elapsed() / duration).clamp(0.0, 1.0)
         };
 
         let eased_t = self.easing.apply(t);
@@ -157,7 +176,7 @@ impl<T: Interpolate> Animation<T> {
         if duration <= 0.0 {
             1.0
         } else {
-            (self.elapsed / duration).clamp(0.0, 1.0)
+            (self.sane_elapsed() / duration).clamp(0.0, 1.0)
         }
     }
 
@@ -850,5 +869,20 @@ mod timed_animation_dt_tests {
         assert!(anim.value().is_finite());
         assert!(anim.progress() > 0.0);
         assert!(!anim.is_complete());
+    }
+
+    /// A poisoned pub `elapsed` is state, not a knob: a valid dt heals
+    /// it (a NaN elapsed otherwise pins the animation Running forever),
+    /// and the read paths stay sane even before that.
+    #[test]
+    fn poisoned_elapsed_is_healed() {
+        let mut anim = Animation::new(0.0_f32, 1.0, 0.3);
+        anim.start();
+        anim.elapsed = f32::NAN;
+        assert_eq!(anim.progress(), 0.0);
+        assert!(anim.value().is_finite());
+        anim.update(1.0 / 60.0);
+        assert!(anim.elapsed.is_finite());
+        assert!(anim.progress() > 0.0);
     }
 }

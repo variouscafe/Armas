@@ -8,7 +8,7 @@
 //! - Disabled options
 //! - State persistence
 
-use super::{sanitize_opt_width, sanitize_width};
+use super::{sanitize_height, sanitize_opt_height, sanitize_opt_width, sanitize_width};
 use crate::ext::ArmasContextExt;
 use crate::Theme;
 use egui::{
@@ -20,6 +20,7 @@ use egui::{
 // ============================================================================
 
 const TRIGGER_HEIGHT: f32 = 36.0;
+const DEFAULT_MAX_HEIGHT: f32 = 300.0;
 const ITEM_HEIGHT: f32 = 32.0;
 const ITEM_HEIGHT_WITH_DESC: f32 = 48.0;
 const CORNER_RADIUS: u8 = 6;
@@ -153,7 +154,7 @@ impl Select {
             width: None,
             max_width: AUTO_WIDTH_MAX,
             custom_height: None,
-            max_height: 300.0,
+            max_height: DEFAULT_MAX_HEIGHT,
             searchable: true,
             custom_font_size: None,
             custom_corner_radius: None,
@@ -219,17 +220,19 @@ impl Select {
         self
     }
 
-    /// Set the trigger height (overrides default 36px)
+    /// Set the trigger height (finite positive; garbage such as NaN
+    /// counts as unset and the default 36px applies)
     #[must_use]
     pub const fn height(mut self, height: f32) -> Self {
-        self.custom_height = Some(height);
+        self.custom_height = sanitize_opt_height(height);
         self
     }
 
-    /// Set the maximum height of the dropdown menu
+    /// Set the maximum height of the dropdown menu (finite positive;
+    /// garbage falls back to the 300px default)
     #[must_use]
     pub const fn max_height(mut self, height: f32) -> Self {
-        self.max_height = height;
+        self.max_height = sanitize_height(height, DEFAULT_MAX_HEIGHT);
         self
     }
 
@@ -389,10 +392,7 @@ impl Select {
 
     fn show_trigger(&self, ui: &mut Ui, theme: &Theme, width: f32) -> (Rect, Response) {
         let avail_h = ui.available_height();
-        // A height knob: the width-knob wrapper would be the wrong name,
-        // so use the general finite-positive policy directly.
-        let default_h =
-            crate::sanitize::finite_above_or(avail_h, 0.0, TRIGGER_HEIGHT).min(TRIGGER_HEIGHT);
+        let default_h = sanitize_height(avail_h, TRIGGER_HEIGHT).min(TRIGGER_HEIGHT);
         let height = self.custom_height.unwrap_or(default_h);
         let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
 
@@ -1041,5 +1041,24 @@ mod width_knob_tests {
         assert!(Select::new(vec![]).width(f32::NAN).width.is_none());
         assert!(Select::new(vec![]).width(f32::INFINITY).width.is_none());
         assert_eq!(Select::new(vec![]).width(320.0).width, Some(320.0));
+    }
+
+    /// Height knobs share the boundary policy: a NaN custom height must
+    /// not reach `allocate_exact_size`, and a garbage max height falls
+    /// back to the 300px default.
+    #[test]
+    fn height_knobs_are_sanitized_at_the_boundary() {
+        assert!(Select::new(vec![]).height(f32::NAN).custom_height.is_none());
+        assert!(Select::new(vec![])
+            .height(f32::INFINITY)
+            .custom_height
+            .is_none());
+        assert!(Select::new(vec![]).height(0.0).custom_height.is_none());
+        assert_eq!(Select::new(vec![]).height(48.0).custom_height, Some(48.0));
+        assert_eq!(
+            Select::new(vec![]).max_height(f32::NAN).max_height,
+            DEFAULT_MAX_HEIGHT
+        );
+        assert_eq!(Select::new(vec![]).max_height(240.0).max_height, 240.0);
     }
 }

@@ -122,6 +122,24 @@ pub(crate) const fn sanitize_opt_width(raw: f32) -> Option<f32> {
     }
 }
 
+/// [`sanitize_width`]'s policy for height knobs, under its own name so
+/// width and height audits stay distinct (a width-specific tightening
+/// must not silently change heights, and vice versa).
+pub(crate) const fn sanitize_height(raw: f32, default: f32) -> f32 {
+    crate::sanitize::finite_above_or(raw, 0.0, default)
+}
+
+/// [`sanitize_height`] for explicit-height knobs, classifying a single
+/// raw value: finite positive → set; garbage counts as unset.
+pub(crate) const fn sanitize_opt_height(raw: f32) -> Option<f32> {
+    let sane = sanitize_height(raw, 0.0);
+    if sane > 0.0 {
+        Some(sane)
+    } else {
+        None
+    }
+}
+
 /// Shared default for the plain-f32 width knobs whose constructors use
 /// 200pt (context menu, dropdown menu, slider, range slider).
 pub(crate) const DEFAULT_WIDTH: f32 = 200.0;
