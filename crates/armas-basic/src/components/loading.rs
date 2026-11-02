@@ -5,6 +5,7 @@
 //! - Spinner: Classic rotating bar spinner
 //! - Skeleton: Content placeholder with shimmer
 
+use super::sanitize_size;
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Pos2, Rect, Response, Ui, Vec2};
 use std::f32::consts::PI;
@@ -67,10 +68,11 @@ impl Spinner {
         }
     }
 
-    /// Set the spinner size
+    /// Set the spinner size (finite positive; garbage keeps the current
+    /// value)
     #[must_use]
     pub const fn size(mut self, size: f32) -> Self {
-        self.size = size;
+        self.size = sanitize_size(size, self.size);
         self
     }
 
@@ -308,5 +310,18 @@ impl Skeleton {
 impl Default for Skeleton {
     fn default() -> Self {
         Self::new(200.0, 20.0)
+    }
+}
+
+#[cfg(test)]
+mod size_knob_tests {
+    use super::*;
+
+    /// The spinner size keeps its current value on garbage.
+    #[test]
+    fn garbage_size_keeps_the_default() {
+        let default = Spinner::new().size;
+        assert_eq!(Spinner::new().size(f32::NAN).size, default);
+        assert_eq!(Spinner::new().size(36.0).size, 36.0);
     }
 }

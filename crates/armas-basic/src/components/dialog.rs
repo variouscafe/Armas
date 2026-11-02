@@ -124,10 +124,10 @@ impl Dialog {
         self
     }
 
-    /// Fix the dialog height. When set, content will scroll rather than expanding the dialog.
+    /// Fix the dialog height. When set, content will scroll rather than expanding
+    /// the dialog (finite positive; garbage such as NaN counts as unset and the
+    /// auto height applies)
     #[must_use]
-    /// Set a fixed height (finite positive; garbage such as NaN counts
-    /// as unset and the auto height applies)
     pub const fn height(mut self, height: f32) -> Self {
         self.fixed_height = sanitize_opt_height(height);
         self
@@ -400,7 +400,7 @@ pub fn dialog_footer(ui: &mut Ui, content: impl FnOnce(&mut Ui)) {
 }
 
 #[cfg(test)]
-mod knob_tests {
+mod height_knob_tests {
     use super::*;
 
     /// The explicit height knob sanitizes at the builder boundary.

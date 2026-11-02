@@ -101,26 +101,23 @@ impl<'a> Card<'a> {
         self
     }
 
-    /// Set custom height (forces exact height regardless of content)
+    /// Set custom height — forces exact height regardless of content
+    /// (finite positive; garbage such as NaN counts as unset)
     #[must_use]
-    /// Set a fixed height (finite positive; garbage such as NaN counts
-    /// as unset)
     pub const fn height(mut self, height: f32) -> Self {
         self.height = sanitize_opt_height(height);
         self
     }
 
-    /// Set minimum height
-    #[must_use]
     /// Set minimum height (finite positive; garbage counts as unset)
+    #[must_use]
     pub const fn min_height(mut self, height: f32) -> Self {
         self.min_height = sanitize_opt_height(height);
         self
     }
 
-    /// Set maximum height
-    #[must_use]
     /// Set maximum height (finite positive; garbage counts as unset)
+    #[must_use]
     pub const fn max_height(mut self, height: f32) -> Self {
         self.max_height = sanitize_opt_height(height);
         self
@@ -397,7 +394,7 @@ mod width_knob_tests {
 }
 
 #[cfg(test)]
-mod knob_tests {
+mod height_knob_tests {
     use super::*;
 
     /// The explicit height knobs sanitize at the builder boundary.

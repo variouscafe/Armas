@@ -19,6 +19,7 @@
 //! # }
 //! ```
 
+use super::sanitize_padding;
 use crate::ext::ArmasContextExt;
 use egui::{Sense, Ui};
 
@@ -56,10 +57,11 @@ impl Breadcrumb {
         Self { spacing: ITEM_GAP }
     }
 
-    /// Set spacing between items (default: 6.0)
+    /// Set spacing between items (default: 6.0; finite non-negative —
+    /// garbage keeps the current value)
     #[must_use]
     pub const fn spacing(mut self, spacing: f32) -> Self {
-        self.spacing = spacing;
+        self.spacing = sanitize_padding(spacing, self.spacing);
         self
     }
 
@@ -249,4 +251,18 @@ pub struct BreadcrumbResponse {
     pub response: egui::Response,
     /// Index of clicked item (if any)
     pub clicked: Option<usize>,
+}
+
+#[cfg(test)]
+mod padding_knob_tests {
+    use super::*;
+
+    /// The spacing knob keeps its current value on garbage and admits
+    /// zero.
+    #[test]
+    fn garbage_spacing_keeps_the_default() {
+        let default = Breadcrumb::new().spacing;
+        assert_eq!(Breadcrumb::new().spacing(f32::NAN).spacing, default);
+        assert_eq!(Breadcrumb::new().spacing(0.0).spacing, 0.0);
+    }
 }

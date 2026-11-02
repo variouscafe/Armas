@@ -223,13 +223,15 @@ impl Select {
         self
     }
 
-    /// Set an explicit height — one knob, three couplings:
+    /// Set an explicit height — one knob, several couplings:
     ///
-    /// - the trigger renders at this height;
-    /// - every dropdown option row renders at this height plus the 16px
-    ///   description block when the option has a description;
-    /// - the row font size scales with the height (roughly 0.55× below
-    ///   30px, 8px minimum).
+    /// - the trigger renders at this height, and its font size (~0.55×
+    ///   below 30px, 8px floor) and horizontal padding (~0.3× below
+    ///   30px, 4px floor) derive from it;
+    /// - every dropdown option row — enabled or disabled — renders at
+    ///   this height plus the 16px description block when the option
+    ///   has a description;
+    /// - the row font size scales with the height the same way.
     ///
     /// Finite positive; garbage such as NaN counts as unset, in which
     /// case the auto sizes apply — the available height capped at 36px
@@ -255,10 +257,9 @@ impl Select {
         self
     }
 
-    /// Set font size (overrides height-derived default)
+    /// Set font size (finite positive; garbage such as NaN counts as unset and the
+    /// height-derived size applies)
     #[must_use]
-    /// Set the font size (finite positive; garbage such as NaN counts
-    /// as unset and the height-derived size applies)
     pub const fn font_size(mut self, size: f32) -> Self {
         self.custom_font_size = sanitize_opt_size(size);
         self
@@ -271,10 +272,9 @@ impl Select {
         self
     }
 
-    /// Set horizontal padding (overrides height-derived default)
+    /// Set horizontal padding (finite non-negative; garbage such as NaN counts as
+    /// unset)
     #[must_use]
-    /// Set the horizontal padding (finite non-negative; garbage such as
-    /// NaN counts as unset)
     pub const fn padding_x(mut self, padding: f32) -> Self {
         self.custom_padding_x = sanitize_opt_padding(padding);
         self
@@ -677,8 +677,14 @@ impl Select {
     }
 
     fn show_disabled_option(&self, ui: &mut Ui, option: &SelectOption, theme: &Theme, width: f32) {
-        let (rect, _) =
-            ui.allocate_exact_size(vec2(width - 16.0, self.item_height()), Sense::hover());
+        // Same two-line sizing as enabled rows so mixed lists stay even.
+        let base_height = self.item_height();
+        let height = if option.description.is_some() {
+            base_height + (ITEM_HEIGHT_WITH_DESC - ITEM_HEIGHT)
+        } else {
+            base_height
+        };
+        let (rect, _) = ui.allocate_exact_size(vec2(width - 16.0, height), Sense::hover());
 
         if !ui.is_rect_visible(rect) {
             return;
@@ -691,8 +697,8 @@ impl Select {
         let font_size = self.item_font_size();
         if let Some(icon) = &option.icon {
             ui.painter().text(
-                content_rect.left_center(),
-                egui::Align2::LEFT_CENTER,
+                content_rect.left_top() + vec2(0.0, 6.0),
+                egui::Align2::LEFT_TOP,
                 icon,
                 egui::FontId::proportional(font_size),
                 color,
@@ -700,13 +706,33 @@ impl Select {
             label_x = ICON_WIDTH;
         }
 
-        ui.painter().text(
-            content_rect.left_center() + vec2(label_x, 0.0),
-            egui::Align2::LEFT_CENTER,
-            &option.label,
-            egui::FontId::proportional(font_size),
-            color,
-        );
+        // Label and description — the same two-line layout as enabled
+        // rows, dimmed; a description is never silently dropped.
+        if let Some(description) = &option.description {
+            let label_pos = content_rect.left_top() + vec2(label_x, 6.0);
+            ui.painter().text(
+                label_pos,
+                egui::Align2::LEFT_TOP,
+                &option.label,
+                egui::FontId::proportional(font_size),
+                color,
+            );
+            ui.painter().text(
+                label_pos + vec2(0.0, font_size + 4.0),
+                egui::Align2::LEFT_TOP,
+                description,
+                egui::FontId::proportional((font_size - 2.0).max(8.0)),
+                color,
+            );
+        } else {
+            ui.painter().text(
+                content_rect.left_center() + vec2(label_x, 0.0),
+                egui::Align2::LEFT_CENTER,
+                &option.label,
+                egui::FontId::proportional(font_size),
+                color,
+            );
+        }
     }
 
     fn show_option(

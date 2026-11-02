@@ -105,9 +105,9 @@ impl Carousel {
         self
     }
 
-    /// Set the carousel height in pixels.
+    /// Set the carousel height in pixels (finite positive; garbage keeps the
+    /// current height)
     #[must_use]
-    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
         self.height = sanitize_height(height, self.height);
         self
@@ -443,7 +443,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod knob_tests {
+mod height_knob_tests {
     use super::*;
 
     /// The plain-f32 height knob keeps its current value on garbage.

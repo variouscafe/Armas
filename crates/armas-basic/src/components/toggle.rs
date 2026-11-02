@@ -5,6 +5,7 @@
 
 use super::content::ContentContext;
 use super::sanitize_opt_width;
+use super::{sanitize_opt_padding, sanitize_padding};
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, CornerRadius, Response, Sense, Stroke, Ui, Vec2};
 
@@ -493,18 +494,20 @@ impl ToggleGroup {
         self
     }
 
-    /// Set spacing between items (0 = joined, >0 = separated)
+    /// Set spacing between items (finite non-negative; garbage keeps the
+    /// current value)
     #[must_use]
     pub const fn spacing(mut self, spacing: f32) -> Self {
-        self.spacing = spacing;
+        self.spacing = sanitize_padding(spacing, self.spacing);
         self
     }
 
-    /// Override horizontal padding around each item's text.
-    /// When set, this takes precedence over the size-based default padding.
+    /// Override horizontal padding around each item's text. When set, this
+    /// takes precedence over the size-based default padding (finite
+    /// non-negative; garbage counts as unset)
     #[must_use]
     pub const fn padding(mut self, padding: f32) -> Self {
-        self.padding = Some(padding);
+        self.padding = sanitize_opt_padding(padding);
         self
     }
 
@@ -979,5 +982,37 @@ mod tests {
     fn test_toggle_group_item_width() {
         let group = ToggleGroup::new(ToggleGroupType::Single).item_width(60.0);
         assert_eq!(group.item_width, Some(60.0));
+    }
+}
+
+#[cfg(test)]
+mod padding_knob_tests {
+    use super::*;
+
+    /// `ToggleGroup` spacing keeps its current value on garbage; the
+    /// explicit padding knob counts garbage as unset.
+    #[test]
+    fn spacing_and_padding_knobs_are_sanitized() {
+        let base = ToggleGroup::new(ToggleGroupType::Single);
+        let default_spacing = base.spacing;
+        assert_eq!(base.spacing(f32::NAN).spacing, default_spacing);
+        assert_eq!(
+            ToggleGroup::new(ToggleGroupType::Single)
+                .spacing(0.0)
+                .spacing,
+            0.0
+        );
+        assert_eq!(
+            ToggleGroup::new(ToggleGroupType::Single)
+                .padding(f32::NAN)
+                .padding,
+            None
+        );
+        assert_eq!(
+            ToggleGroup::new(ToggleGroupType::Single)
+                .padding(6.0)
+                .padding,
+            Some(6.0)
+        );
     }
 }

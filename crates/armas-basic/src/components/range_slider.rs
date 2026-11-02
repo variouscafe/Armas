@@ -96,9 +96,8 @@ impl RangeSlider {
         self
     }
 
-    /// Set the slider height
+    /// Set the slider height (finite positive; garbage keeps the current height)
     #[must_use]
-    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
         self.height = sanitize_height(height, self.height);
         self
@@ -553,7 +552,7 @@ pub struct RangeSliderResponse {
 }
 
 #[cfg(test)]
-mod knob_tests {
+mod height_knob_tests {
     use super::*;
 
     /// The plain-f32 height knob keeps its current value on garbage.

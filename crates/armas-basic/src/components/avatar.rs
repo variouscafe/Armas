@@ -2,6 +2,7 @@
 //!
 //! User profile images and initials styled like shadcn/ui Avatar.
 
+use super::sanitize_size;
 use crate::ext::ArmasContextExt;
 use egui::{vec2, Response, Sense, Ui};
 
@@ -83,10 +84,11 @@ impl Avatar {
         }
     }
 
-    /// Set the avatar size in pixels
+    /// Set the avatar size in pixels (finite positive; garbage keeps the
+    /// current value)
     #[must_use]
     pub const fn size(mut self, size: f32) -> Self {
-        self.size = size;
+        self.size = sanitize_size(size, self.size);
         self
     }
 
@@ -148,5 +150,18 @@ impl Avatar {
         }
 
         response
+    }
+}
+
+#[cfg(test)]
+mod size_knob_tests {
+    use super::*;
+
+    /// The avatar size keeps its current value on garbage.
+    #[test]
+    fn garbage_size_keeps_the_default() {
+        let default = Avatar::new("ab").size;
+        assert_eq!(Avatar::new("ab").size(f32::NAN).size, default);
+        assert_eq!(Avatar::new("ab").size(64.0).size, 64.0);
     }
 }

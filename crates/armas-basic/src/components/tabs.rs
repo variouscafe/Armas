@@ -4,7 +4,7 @@
 //! Features a muted background container with animated active indicator.
 
 use super::content::ContentContext;
-use super::{sanitize_height, sanitize_width};
+use super::{sanitize_height, sanitize_padding, sanitize_size, sanitize_width};
 use crate::ext::ArmasContextExt;
 use egui::{Pos2, Ui, Vec2};
 
@@ -112,18 +112,18 @@ impl Tabs {
         self
     }
 
-    /// Set overall height
+    /// Set overall height (finite positive; garbage keeps the current height)
     #[must_use]
-    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
         self.height = sanitize_height(height, self.height);
         self
     }
 
-    /// Set inner padding
+    /// Set inner padding (finite non-negative; garbage keeps the
+    /// current value)
     #[must_use]
     pub const fn padding(mut self, padding: f32) -> Self {
-        self.padding = padding;
+        self.padding = sanitize_padding(padding, self.padding);
         self
     }
 
@@ -141,24 +141,26 @@ impl Tabs {
         self
     }
 
-    /// Set horizontal padding inside each tab trigger
+    /// Set horizontal padding inside each tab trigger (finite non-negative;
+    /// garbage keeps the current value)
     #[must_use]
     pub const fn trigger_padding_x(mut self, padding: f32) -> Self {
-        self.trigger_padding_x = padding;
+        self.trigger_padding_x = sanitize_padding(padding, self.trigger_padding_x);
         self
     }
 
-    /// Set gap between tabs
+    /// Set gap between tabs (finite non-negative; garbage keeps the current
+    /// value)
     #[must_use]
     pub const fn gap(mut self, gap: f32) -> Self {
-        self.gap = gap;
+        self.gap = sanitize_padding(gap, self.gap);
         self
     }
 
-    /// Set font size
+    /// Set font size (finite positive; garbage keeps the current value)
     #[must_use]
     pub const fn font_size(mut self, size: f32) -> Self {
-        self.font_size = size;
+        self.font_size = sanitize_size(size, self.font_size);
         self
     }
 
@@ -448,7 +450,7 @@ impl Tabs {
 }
 
 #[cfg(test)]
-mod knob_tests {
+mod height_knob_tests {
     use super::*;
 
     /// The plain-f32 height knob keeps its current value on garbage.
@@ -457,5 +459,42 @@ mod knob_tests {
         let default = Tabs::new(vec!["a"]).height;
         assert_eq!(Tabs::new(vec!["a"]).height(f32::NAN).height, default);
         assert_eq!(Tabs::new(vec!["a"]).height(28.0).height, 28.0);
+    }
+}
+
+#[cfg(test)]
+mod size_knob_tests {
+    use super::*;
+
+    /// The font-size knob keeps its current value on garbage.
+    #[test]
+    fn garbage_font_size_keeps_the_default() {
+        let default = Tabs::new(vec!["a"]).font_size;
+        assert_eq!(Tabs::new(vec!["a"]).font_size(f32::NAN).font_size, default);
+        assert_eq!(Tabs::new(vec!["a"]).font_size(13.0).font_size, 13.0);
+    }
+}
+
+#[cfg(test)]
+mod padding_knob_tests {
+    use super::*;
+
+    /// Padding-family knobs (padding, trigger padding, gap) keep their
+    /// current values on garbage and admit zero.
+    #[test]
+    fn garbage_padding_keeps_the_default() {
+        let base = Tabs::new(vec!["a"]);
+        let (default_padding, default_trigger, default_gap) =
+            (base.padding, base.trigger_padding_x, base.gap);
+        assert_eq!(base.padding(f32::NAN).padding, default_padding);
+        assert_eq!(Tabs::new(vec!["a"]).padding(0.0).padding, 0.0);
+        assert_eq!(
+            Tabs::new(vec!["a"])
+                .trigger_padding_x(f32::INFINITY)
+                .trigger_padding_x,
+            default_trigger
+        );
+        assert_eq!(Tabs::new(vec!["a"]).gap(-1.0).gap, default_gap);
+        assert_eq!(Tabs::new(vec!["a"]).gap(0.0).gap, 0.0);
     }
 }

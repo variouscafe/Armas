@@ -156,8 +156,14 @@ pub(crate) const fn sanitize_opt_size(raw: f32) -> Option<f32> {
     }
 }
 
-/// Padding knobs, where zero is legal (flush): a finite non-negative
-/// value passes, garbage counts as unset.
+/// Padding and spacing knobs, where zero is legal (flush / no gap): a
+/// finite non-negative value passes, garbage falls back to `default`.
+pub(crate) const fn sanitize_padding(raw: f32, default: f32) -> f32 {
+    crate::sanitize::finite_at_least_or(raw, 0.0, default)
+}
+
+/// [`sanitize_padding`] for explicit-padding knobs: garbage counts as
+/// unset.
 pub(crate) const fn sanitize_opt_padding(raw: f32) -> Option<f32> {
     let sane = crate::sanitize::finite_at_least_or(raw, 0.0, -1.0);
     if sane >= 0.0 {
@@ -181,6 +187,8 @@ mod sanitize_tests {
         assert_eq!(sanitize_opt_width(150.0), Some(150.0));
         assert_eq!(sanitize_height(28.0, 36.0), 28.0);
         assert_eq!(sanitize_opt_height(28.0), Some(28.0));
+        assert_eq!(sanitize_size(13.0, 14.0), 13.0);
+        assert_eq!(sanitize_opt_size(13.0), Some(13.0));
     }
 
     #[test]
@@ -190,6 +198,22 @@ mod sanitize_tests {
             assert_eq!(sanitize_opt_width(garbage), None);
             assert_eq!(sanitize_height(garbage, 36.0), 36.0);
             assert_eq!(sanitize_opt_height(garbage), None);
+            assert_eq!(sanitize_size(garbage, 14.0), 14.0);
+            assert_eq!(sanitize_opt_size(garbage), None);
+        }
+    }
+
+    /// Padding admits zero (flush); garbage falls back / counts as
+    /// unset — pinning the sentinel classification at the wrapper level.
+    #[test]
+    fn padding_admits_zero_and_rejects_garbage() {
+        assert_eq!(sanitize_padding(0.0, 8.0), 0.0);
+        assert_eq!(sanitize_padding(4.0, 8.0), 4.0);
+        assert_eq!(sanitize_opt_padding(0.0), Some(0.0));
+        assert_eq!(sanitize_opt_padding(4.0), Some(4.0));
+        for garbage in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.5] {
+            assert_eq!(sanitize_padding(garbage, 8.0), 8.0);
+            assert_eq!(sanitize_opt_padding(garbage), None);
         }
     }
 }

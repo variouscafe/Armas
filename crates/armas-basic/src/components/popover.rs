@@ -2,7 +2,7 @@
 //!
 //! Floating panels anchored to elements.
 
-use super::{sanitize_opt_width, sanitize_width};
+use super::{sanitize_opt_padding, sanitize_opt_width, sanitize_width};
 use crate::{Card, CardVariant, Theme};
 use egui::{pos2, vec2, Color32, Id, Pos2, Rect, Ui, Vec2};
 
@@ -194,10 +194,11 @@ impl Popover {
         self
     }
 
-    /// Set custom inner padding (overrides style default)
+    /// Set custom inner padding (overrides style default; finite
+    /// non-negative — garbage such as NaN counts as unset)
     #[must_use]
     pub const fn padding(mut self, padding: f32) -> Self {
-        self.padding = Some(padding);
+        self.padding = sanitize_opt_padding(padding);
         self
     }
 
@@ -498,5 +499,18 @@ mod position_estimate_tests {
         let left = popover.calculate_popover_position(anchor, PopoverPosition::Left, 1000.0);
         let spacing = popover.offset.length();
         assert_eq!(left.x, 480.0 - 1000.0 - spacing);
+    }
+}
+
+#[cfg(test)]
+mod padding_knob_tests {
+    use super::*;
+
+    /// The explicit padding knob counts garbage as unset.
+    #[test]
+    fn garbage_padding_counts_as_unset() {
+        assert!(Popover::new("p").padding(f32::NAN).padding.is_none());
+        assert!(Popover::new("p").padding(-1.0).padding.is_none());
+        assert_eq!(Popover::new("p").padding(12.0).padding, Some(12.0));
     }
 }

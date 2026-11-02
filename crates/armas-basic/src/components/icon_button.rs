@@ -2,6 +2,7 @@
 //!
 //! A button variant specifically designed for rendering icons.
 
+use super::{sanitize_opt_padding, sanitize_size};
 use crate::components::ButtonVariant;
 use crate::ext::ArmasContextExt;
 use crate::icon::{render_icon_data, IconData, OwnedIconData};
@@ -68,17 +69,20 @@ impl<'a> IconButton<'a> {
         self
     }
 
-    /// Set the total widget size (icon + padding). Default 16.
+    /// Set the total widget size (icon + padding). Default 16 (finite
+    /// positive; garbage keeps the current value)
     #[must_use]
     pub const fn size(mut self, size: f32) -> Self {
-        self.size = size;
+        self.size = sanitize_size(size, self.size);
         self
     }
 
-    /// Set padding between widget edge and icon. Default: 0 for Ghost/Link, `button_padding` for others.
+    /// Set padding between widget edge and icon. Default: 0 for
+    /// Ghost/Link, `button_padding` for others (finite non-negative;
+    /// garbage counts as unset).
     #[must_use]
     pub const fn padding(mut self, padding: f32) -> Self {
-        self.padding = Some(padding);
+        self.padding = sanitize_opt_padding(padding);
         self
     }
 
@@ -226,5 +230,31 @@ impl<'a> IconButton<'a> {
         }
 
         response
+    }
+}
+
+#[cfg(test)]
+mod size_knob_tests {
+    use super::*;
+
+    /// The icon size keeps its current value on garbage; the explicit
+    /// padding knob counts garbage as unset.
+    #[test]
+    fn size_and_padding_knobs_are_sanitized() {
+        let icon = icon_data();
+        let default = IconButton::new(&icon).size;
+        assert_eq!(IconButton::new(&icon).size(f32::NAN).size, default);
+        assert_eq!(IconButton::new(&icon).padding(f32::NAN).padding, None);
+        assert_eq!(IconButton::new(&icon).padding(0.0).padding, Some(0.0));
+    }
+
+    fn icon_data() -> IconData {
+        IconData {
+            name: "test",
+            vertices: &[],
+            indices: &[],
+            viewbox_width: 24.0,
+            viewbox_height: 24.0,
+        }
     }
 }

@@ -5,7 +5,7 @@
 //! - Progress: Simple horizontal progress bar (shadcn style)
 //! - `CircularProgressBar`: Circular/spinner progress
 
-use super::{sanitize_height, sanitize_opt_width};
+use super::{sanitize_height, sanitize_opt_width, sanitize_size};
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Pos2, Ui, Vec2};
 use std::f32::consts::PI;
@@ -64,9 +64,9 @@ impl Progress {
         self
     }
 
-    /// Set the height of the progress bar
+    /// Set the height of the progress bar (finite positive; garbage keeps the
+    /// current height)
     #[must_use]
-    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
         self.height = sanitize_height(height, self.height);
         self
@@ -173,17 +173,17 @@ impl CircularProgressBar {
         }
     }
 
-    /// Set circle size (diameter)
+    /// Set circle size (finite positive; garbage keeps the current value)
     #[must_use]
     pub const fn size(mut self, size: f32) -> Self {
-        self.size = size;
+        self.size = sanitize_size(size, self.size);
         self
     }
 
-    /// Set stroke width
+    /// Set stroke width (finite positive; garbage keeps the current value)
     #[must_use]
     pub const fn stroke_width(mut self, width: f32) -> Self {
-        self.stroke_width = width;
+        self.stroke_width = sanitize_size(width, self.stroke_width);
         self
     }
 
@@ -283,7 +283,7 @@ impl CircularProgressBar {
 }
 
 #[cfg(test)]
-mod knob_tests {
+mod height_knob_tests {
     use super::*;
 
     /// The plain-f32 height knob keeps its current value on garbage.
@@ -292,5 +292,33 @@ mod knob_tests {
         let default = Progress::new(0.5).height;
         assert_eq!(Progress::new(0.5).height(f32::NAN).height, default);
         assert_eq!(Progress::new(0.5).height(28.0).height, 28.0);
+    }
+}
+
+#[cfg(test)]
+mod size_knob_tests {
+    use super::*;
+
+    /// The circular progress size and stroke width keep their current
+    /// values on garbage.
+    #[test]
+    fn garbage_size_and_stroke_keep_the_default() {
+        let base = CircularProgressBar::new(0.5);
+        let (default_size, default_stroke) = (base.size, base.stroke_width);
+        assert_eq!(
+            CircularProgressBar::new(0.5).size(f32::NAN).size,
+            default_size
+        );
+        assert_eq!(CircularProgressBar::new(0.5).size(48.0).size, 48.0);
+        assert_eq!(
+            CircularProgressBar::new(0.5)
+                .stroke_width(f32::INFINITY)
+                .stroke_width,
+            default_stroke
+        );
+        assert_eq!(
+            CircularProgressBar::new(0.5).stroke_width(3.0).stroke_width,
+            3.0
+        );
     }
 }
