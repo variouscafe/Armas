@@ -8,7 +8,10 @@
 //! - Disabled options
 //! - State persistence
 
-use super::{sanitize_height, sanitize_opt_height, sanitize_opt_width, sanitize_width};
+use super::{
+    sanitize_height, sanitize_opt_height, sanitize_opt_padding, sanitize_opt_size,
+    sanitize_opt_width, sanitize_width,
+};
 use crate::ext::ArmasContextExt;
 use crate::Theme;
 use egui::{
@@ -220,13 +223,17 @@ impl Select {
         self
     }
 
-    /// Set an explicit height — for the trigger *and*, as a side effect,
-    /// every dropdown option row (the single knob couples both; rows
-    /// would otherwise be 32px against the trigger's 36px).
+    /// Set an explicit height — one knob, three couplings:
+    ///
+    /// - the trigger renders at this height;
+    /// - every dropdown option row renders at this height plus the 16px
+    ///   description block when the option has a description;
+    /// - the row font size scales with the height (roughly 0.55× below
+    ///   30px, 8px minimum).
     ///
     /// Finite positive; garbage such as NaN counts as unset, in which
-    /// case the auto height applies — the available height capped at
-    /// 36px for the trigger, 32px for rows.
+    /// case the auto sizes apply — the available height capped at 36px
+    /// for the trigger, and 32px rows (48px with a description).
     #[must_use]
     pub const fn height(mut self, height: f32) -> Self {
         self.custom_height = sanitize_opt_height(height);
@@ -250,8 +257,10 @@ impl Select {
 
     /// Set font size (overrides height-derived default)
     #[must_use]
+    /// Set the font size (finite positive; garbage such as NaN counts
+    /// as unset and the height-derived size applies)
     pub const fn font_size(mut self, size: f32) -> Self {
-        self.custom_font_size = Some(size);
+        self.custom_font_size = sanitize_opt_size(size);
         self
     }
 
@@ -264,8 +273,10 @@ impl Select {
 
     /// Set horizontal padding (overrides height-derived default)
     #[must_use]
+    /// Set the horizontal padding (finite non-negative; garbage such as
+    /// NaN counts as unset)
     pub const fn padding_x(mut self, padding: f32) -> Self {
-        self.custom_padding_x = Some(padding);
+        self.custom_padding_x = sanitize_opt_padding(padding);
         self
     }
 
@@ -1065,5 +1076,30 @@ mod knob_tests {
             DEFAULT_MAX_HEIGHT
         );
         assert_eq!(Select::new(vec![]).max_height(240.0).max_height, 240.0);
+    }
+
+    /// Font-size and padding knobs share the boundary policy.
+    #[test]
+    fn font_size_and_padding_knobs_are_sanitized() {
+        for garbage in [f32::NAN, f32::INFINITY, -4.0, 0.0] {
+            assert!(Select::new(vec![])
+                .font_size(garbage)
+                .custom_font_size
+                .is_none());
+        }
+        for garbage in [f32::NAN, f32::INFINITY, -4.0] {
+            assert!(Select::new(vec![])
+                .padding_x(garbage)
+                .custom_padding_x
+                .is_none());
+        }
+        assert_eq!(
+            Select::new(vec![]).padding_x(0.0).custom_padding_x,
+            Some(0.0)
+        );
+        assert_eq!(
+            Select::new(vec![]).font_size(12.0).custom_font_size,
+            Some(12.0)
+        );
     }
 }

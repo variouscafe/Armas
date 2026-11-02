@@ -3,6 +3,7 @@
 //! Overlays for focused user interactions.
 //! Styled to match shadcn/ui Dialog conventions.
 
+use super::sanitize_opt_height;
 use crate::animation::{Animation, EasingFunction};
 use crate::Theme;
 use egui::{vec2, Align, Align2, Color32, Key, Layout, Sense, Stroke, Ui};
@@ -125,8 +126,10 @@ impl Dialog {
 
     /// Fix the dialog height. When set, content will scroll rather than expanding the dialog.
     #[must_use]
+    /// Set a fixed height (finite positive; garbage such as NaN counts
+    /// as unset and the auto height applies)
     pub const fn height(mut self, height: f32) -> Self {
-        self.fixed_height = Some(height);
+        self.fixed_height = sanitize_opt_height(height);
         self
     }
 
@@ -394,4 +397,18 @@ pub fn dialog_footer(ui: &mut Ui, content: impl FnOnce(&mut Ui)) {
         ui.spacing_mut().item_spacing.x = FOOTER_GAP;
         content(ui);
     });
+}
+
+#[cfg(test)]
+mod knob_tests {
+    use super::*;
+
+    /// The explicit height knob sanitizes at the builder boundary.
+    #[test]
+    fn garbage_height_counts_as_unset() {
+        for garbage in [f32::NAN, f32::INFINITY, -4.0, 0.0] {
+            assert!(Dialog::new("d").height(garbage).fixed_height.is_none());
+        }
+        assert_eq!(Dialog::new("d").height(320.0).fixed_height, Some(320.0));
+    }
 }

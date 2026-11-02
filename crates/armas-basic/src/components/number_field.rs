@@ -9,7 +9,7 @@
 //! - Labels and descriptions
 //! - Disabled state
 
-use super::sanitize_opt_width;
+use super::{sanitize_height, sanitize_opt_width};
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, CornerRadius, Response, Sense, Stroke, Ui, Vec2};
 
@@ -101,8 +101,9 @@ impl NumberField {
 
     /// Set the height of the field
     #[must_use]
+    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
-        self.height = height;
+        self.height = sanitize_height(height, self.height);
         self
     }
 
@@ -525,5 +526,18 @@ mod tests {
         assert_eq!(format_value(-1.0), "-1");
         assert_eq!(format_value(2.5), "2.5");
         assert_eq!(format_value(1.100), "1.1");
+    }
+}
+
+#[cfg(test)]
+mod knob_tests {
+    use super::*;
+
+    /// The plain-f32 height knob keeps its current value on garbage.
+    #[test]
+    fn garbage_height_keeps_the_default() {
+        let default = NumberField::new().height;
+        assert_eq!(NumberField::new().height(f32::NAN).height, default);
+        assert_eq!(NumberField::new().height(28.0).height, 28.0);
     }
 }

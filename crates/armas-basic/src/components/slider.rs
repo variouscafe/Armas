@@ -7,7 +7,7 @@
 //! - Optional velocity-based dragging (hold Ctrl/Cmd)
 //! - Labels and value display
 
-use super::sanitize_width;
+use super::{sanitize_height, sanitize_width};
 use crate::animation::{DragMode, VelocityDrag, VelocityDragConfig};
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, Rect, Sense, Stroke, Ui};
@@ -102,8 +102,9 @@ impl Slider {
 
     /// Set the slider height
     #[must_use]
+    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
-        self.height = height;
+        self.height = sanitize_height(height, self.height);
         self
     }
 
@@ -385,4 +386,17 @@ pub struct SliderResponse {
     pub value: f32,
     /// Whether the value changed this frame
     pub changed: bool,
+}
+
+#[cfg(test)]
+mod knob_tests {
+    use super::*;
+
+    /// The plain-f32 height knob keeps its current value on garbage.
+    #[test]
+    fn garbage_height_keeps_the_default() {
+        let default = Slider::new(0.0, 1.0).height;
+        assert_eq!(Slider::new(0.0, 1.0).height(f32::NAN).height, default);
+        assert_eq!(Slider::new(0.0, 1.0).height(28.0).height, 28.0);
+    }
 }

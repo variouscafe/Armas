@@ -14,6 +14,7 @@
 //! # }
 //! ```
 
+use super::sanitize_height;
 use crate::animation::SpringAnimation;
 use egui::{vec2, Id, Pos2, Rect, Sense, Stroke, Ui};
 
@@ -106,8 +107,9 @@ impl Carousel {
 
     /// Set the carousel height in pixels.
     #[must_use]
+    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
-        self.height = height;
+        self.height = sanitize_height(height, self.height);
         self
     }
 
@@ -437,5 +439,18 @@ mod tests {
         assert_eq!(carousel.gap, 8.0);
         assert!(!carousel.show_buttons);
         assert_eq!(carousel.height, 300.0);
+    }
+}
+
+#[cfg(test)]
+mod knob_tests {
+    use super::*;
+
+    /// The plain-f32 height knob keeps its current value on garbage.
+    #[test]
+    fn garbage_height_keeps_the_default() {
+        let default = Carousel::new("c").height;
+        assert_eq!(Carousel::new("c").height(f32::NAN).height, default);
+        assert_eq!(Carousel::new("c").height(28.0).height, 28.0);
     }
 }

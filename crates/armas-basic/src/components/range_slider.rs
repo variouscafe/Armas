@@ -2,7 +2,7 @@
 //!
 //! Horizontal slider with two thumbs for selecting a range (min/max).
 
-use super::sanitize_width;
+use super::{sanitize_height, sanitize_width};
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, Rect, Response, Sense, Stroke, Ui};
 
@@ -98,8 +98,9 @@ impl RangeSlider {
 
     /// Set the slider height
     #[must_use]
+    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
-        self.height = height;
+        self.height = sanitize_height(height, self.height);
         self
     }
 
@@ -549,4 +550,17 @@ pub struct RangeSliderResponse {
     pub max_value: f32,
     /// Whether either value changed this frame
     pub changed: bool,
+}
+
+#[cfg(test)]
+mod knob_tests {
+    use super::*;
+
+    /// The plain-f32 height knob keeps its current value on garbage.
+    #[test]
+    fn garbage_height_keeps_the_default() {
+        let default = RangeSlider::new(0.0, 1.0).height;
+        assert_eq!(RangeSlider::new(0.0, 1.0).height(f32::NAN).height, default);
+        assert_eq!(RangeSlider::new(0.0, 1.0).height(28.0).height, 28.0);
+    }
 }

@@ -4,7 +4,7 @@
 //! Features a muted background container with animated active indicator.
 
 use super::content::ContentContext;
-use super::sanitize_width;
+use super::{sanitize_height, sanitize_width};
 use crate::ext::ArmasContextExt;
 use egui::{Pos2, Ui, Vec2};
 
@@ -114,8 +114,9 @@ impl Tabs {
 
     /// Set overall height
     #[must_use]
+    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
-        self.height = height;
+        self.height = sanitize_height(height, self.height);
         self
     }
 
@@ -443,5 +444,18 @@ impl Tabs {
             selected,
             changed,
         }
+    }
+}
+
+#[cfg(test)]
+mod knob_tests {
+    use super::*;
+
+    /// The plain-f32 height knob keeps its current value on garbage.
+    #[test]
+    fn garbage_height_keeps_the_default() {
+        let default = Tabs::new(vec!["a"]).height;
+        assert_eq!(Tabs::new(vec!["a"]).height(f32::NAN).height, default);
+        assert_eq!(Tabs::new(vec!["a"]).height(28.0).height, 28.0);
     }
 }

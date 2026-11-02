@@ -5,7 +5,7 @@
 //! - Progress: Simple horizontal progress bar (shadcn style)
 //! - `CircularProgressBar`: Circular/spinner progress
 
-use super::sanitize_opt_width;
+use super::{sanitize_height, sanitize_opt_width};
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Pos2, Ui, Vec2};
 use std::f32::consts::PI;
@@ -66,8 +66,9 @@ impl Progress {
 
     /// Set the height of the progress bar
     #[must_use]
+    /// Set the height (finite positive; garbage keeps the current height)
     pub const fn height(mut self, height: f32) -> Self {
-        self.height = height;
+        self.height = sanitize_height(height, self.height);
         self
     }
 
@@ -278,5 +279,18 @@ impl CircularProgressBar {
             ui.painter()
                 .line_segment([p1, p2], egui::Stroke::new(self.stroke_width, color));
         }
+    }
+}
+
+#[cfg(test)]
+mod knob_tests {
+    use super::*;
+
+    /// The plain-f32 height knob keeps its current value on garbage.
+    #[test]
+    fn garbage_height_keeps_the_default() {
+        let default = Progress::new(0.5).height;
+        assert_eq!(Progress::new(0.5).height(f32::NAN).height, default);
+        assert_eq!(Progress::new(0.5).height(28.0).height, 28.0);
     }
 }

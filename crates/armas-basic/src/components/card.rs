@@ -25,7 +25,7 @@
 //! }
 //! ```
 
-use super::sanitize_opt_width;
+use super::{sanitize_opt_height, sanitize_opt_width};
 use crate::ext::ArmasContextExt;
 use egui::{self, Color32, CornerRadius};
 
@@ -103,22 +103,26 @@ impl<'a> Card<'a> {
 
     /// Set custom height (forces exact height regardless of content)
     #[must_use]
+    /// Set a fixed height (finite positive; garbage such as NaN counts
+    /// as unset)
     pub const fn height(mut self, height: f32) -> Self {
-        self.height = Some(height);
+        self.height = sanitize_opt_height(height);
         self
     }
 
     /// Set minimum height
     #[must_use]
+    /// Set minimum height (finite positive; garbage counts as unset)
     pub const fn min_height(mut self, height: f32) -> Self {
-        self.min_height = Some(height);
+        self.min_height = sanitize_opt_height(height);
         self
     }
 
     /// Set maximum height
     #[must_use]
+    /// Set maximum height (finite positive; garbage counts as unset)
     pub const fn max_height(mut self, height: f32) -> Self {
-        self.max_height = Some(height);
+        self.max_height = sanitize_opt_height(height);
         self
     }
 
@@ -389,5 +393,19 @@ mod width_knob_tests {
         assert!(Card::new().width(f32::INFINITY).width.is_none());
         assert!(Card::new().width(0.0).width.is_none());
         assert_eq!(Card::new().width(320.0).width, Some(320.0));
+    }
+}
+
+#[cfg(test)]
+mod knob_tests {
+    use super::*;
+
+    /// The explicit height knobs sanitize at the builder boundary.
+    #[test]
+    fn garbage_height_counts_as_unset() {
+        for garbage in [f32::NAN, f32::INFINITY, -4.0, 0.0] {
+            assert!(Card::new().height(garbage).height.is_none());
+        }
+        assert_eq!(Card::new().height(120.0).height, Some(120.0));
     }
 }

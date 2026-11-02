@@ -140,6 +140,33 @@ pub(crate) const fn sanitize_opt_height(raw: f32) -> Option<f32> {
     }
 }
 
+/// Positive-size knobs that are neither width nor height (font sizes,
+/// icon sizes): finite positive passes, garbage falls back to `default`.
+pub(crate) const fn sanitize_size(raw: f32, default: f32) -> f32 {
+    crate::sanitize::finite_above_or(raw, 0.0, default)
+}
+
+/// [`sanitize_size`] for explicit-size knobs: garbage counts as unset.
+pub(crate) const fn sanitize_opt_size(raw: f32) -> Option<f32> {
+    let sane = sanitize_size(raw, 0.0);
+    if sane > 0.0 {
+        Some(sane)
+    } else {
+        None
+    }
+}
+
+/// Padding knobs, where zero is legal (flush): a finite non-negative
+/// value passes, garbage counts as unset.
+pub(crate) const fn sanitize_opt_padding(raw: f32) -> Option<f32> {
+    let sane = crate::sanitize::finite_at_least_or(raw, 0.0, -1.0);
+    if sane >= 0.0 {
+        Some(sane)
+    } else {
+        None
+    }
+}
+
 /// Shared default for the plain-f32 width knobs whose constructors use
 /// 200pt (context menu, dropdown menu, slider, range slider).
 pub(crate) const DEFAULT_WIDTH: f32 = 200.0;

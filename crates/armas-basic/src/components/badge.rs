@@ -8,7 +8,9 @@
 //! - Outline (border only)
 
 use super::content::ContentContext;
-use super::{sanitize_opt_height, sanitize_opt_width};
+use super::{
+    sanitize_opt_height, sanitize_opt_padding, sanitize_opt_size, sanitize_opt_width, sanitize_size,
+};
 use crate::ext::ArmasContextExt;
 use crate::Theme;
 use egui::{Color32, Pos2, Response, Ui, Vec2};
@@ -125,10 +127,11 @@ impl Badge {
         self
     }
 
-    /// Set text size
+    /// Set text size (finite positive — garbage such as NaN counts as
+    /// unset)
     #[must_use]
     pub const fn size(mut self, size: f32) -> Self {
-        self.custom_font_size = Some(size);
+        self.custom_font_size = sanitize_opt_size(size);
         self
     }
 
@@ -146,10 +149,11 @@ impl Badge {
         self
     }
 
-    /// Set vertical padding
+    /// Set vertical padding (finite non-negative — zero is flush, and
+    /// garbage such as NaN counts as unset)
     #[must_use]
     pub const fn vertical_padding(mut self, padding: f32) -> Self {
-        self.custom_vertical_padding = Some(padding);
+        self.custom_vertical_padding = sanitize_opt_padding(padding);
         self
     }
 
@@ -528,10 +532,10 @@ impl NotificationBadge {
         self
     }
 
-    /// Set badge size
+    /// Set badge size (finite positive; garbage keeps the current size)
     #[must_use]
     pub const fn size(mut self, size: f32) -> Self {
-        self.size = size;
+        self.size = sanitize_size(size, self.size);
         self
     }
 
@@ -582,5 +586,32 @@ mod height_knob_tests {
             assert!(Badge::new("b").height(garbage).custom_height.is_none());
         }
         assert_eq!(Badge::new("b").height(24.0).custom_height, Some(24.0));
+    }
+
+    /// Font-size and padding knobs share the boundary policy (padding
+    /// admits zero; font size does not).
+    #[test]
+    fn size_and_padding_knobs_are_sanitized() {
+        for garbage in [f32::NAN, f32::INFINITY, -4.0, 0.0] {
+            assert!(Badge::new("b").size(garbage).custom_font_size.is_none());
+        }
+        assert_eq!(Badge::new("b").size(13.0).custom_font_size, Some(13.0));
+        for garbage in [f32::NAN, f32::INFINITY, -4.0] {
+            assert!(Badge::new("b")
+                .vertical_padding(garbage)
+                .custom_vertical_padding
+                .is_none());
+        }
+        assert_eq!(
+            Badge::new("b")
+                .vertical_padding(0.0)
+                .custom_vertical_padding,
+            Some(0.0)
+        );
+
+        // The notification badge's plain-f32 size keeps its current
+        // value on garbage.
+        assert_eq!(NotificationBadge::new(3).size(f32::NAN).size, 18.0);
+        assert_eq!(NotificationBadge::new(3).size(9.0).size, 9.0);
     }
 }
