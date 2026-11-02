@@ -311,9 +311,15 @@ impl<B: MomentumBehavior> MomentumPosition<B> {
 
     /// Update the animation (call each frame)
     ///
-    /// Returns true if the position changed
+    /// Returns true if the position changed. A non-finite or non-positive
+    /// dt advances nothing — one garbage frame must not freeze the fling
+    /// (a NaN position is rejected by the change threshold forever, pinning
+    /// `is_animating` at true).
     pub fn update(&mut self, dt: f64) -> bool {
         if self.is_dragging || !self.is_animating {
+            return false;
+        }
+        if !dt.is_finite() || dt <= 0.0 {
             return false;
         }
 
@@ -335,5 +341,30 @@ impl<B: MomentumBehavior> MomentumPosition<B> {
         } else {
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One NaN dt frame must not freeze the fling: without the guard, the
+    /// NaN position is rejected by the change threshold every frame and
+    /// `is_animating` pins true forever.
+    #[test]
+    fn nan_dt_does_not_freeze_the_fling() {
+        let mut momentum = MomentumPosition::new(ContinuousWithMomentum::default());
+        momentum.begin_drag();
+        momentum.drag(50.0, 0.016);
+        momentum.end_drag();
+        assert!(momentum.is_animating());
+        assert!(!momentum.update(f64::NAN));
+        assert!(!momentum.update(0.0));
+        assert!(momentum.is_animating());
+        assert!(
+            momentum.update(1.0 / 60.0),
+            "still moving after garbage frames"
+        );
+        assert!(momentum.is_animating());
     }
 }

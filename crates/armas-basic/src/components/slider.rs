@@ -205,11 +205,7 @@ impl Slider {
 
             // Slider track and handle — fill available width when bounded
             let avail = ui.available_width();
-            let slider_width = if avail.is_finite() && avail > 0.0 {
-                avail
-            } else {
-                self.width
-            };
+            let slider_width = crate::sanitize::finite_above_or(avail, 0.0, self.width);
             let (rect, response) =
                 ui.allocate_exact_size(vec2(slider_width, self.height), Sense::click_and_drag());
 

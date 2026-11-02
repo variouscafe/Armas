@@ -63,14 +63,28 @@ pub struct Animation<T: Interpolate> {
 
 impl<T: Interpolate> Animation<T> {
     /// Create a new animation from start to end over duration
+    ///
+    /// A non-finite duration (NaN, ±∞ — e.g. from config) falls back to
+    /// the 0.3s default instead of making `value()` NaN forever; zero and
+    /// negative durations stay legal, meaning "already complete".
     pub const fn new(start: T, end: T, duration: f32) -> Self {
         Self {
             start,
             end,
-            duration,
+            duration: sanitize_duration(duration),
             elapsed: 0.0,
             easing: EasingFunction::EaseInOut,
             state: AnimationState::NotStarted,
+        }
+    }
+
+    /// The effective duration: the pub `duration` field is healed the
+    /// same way the constructor sanitizes it.
+    const fn sane_duration(&self) -> f32 {
+        if self.duration.is_finite() {
+            self.duration
+        } else {
+            DEFAULT_DURATION
         }
     }
 
@@ -111,7 +125,8 @@ impl<T: Interpolate> Animation<T> {
     ///
     /// A non-finite dt (whose NaN would make `elapsed` — and therefore
     /// every later `value()` — NaN forever) advances nothing; a negative
-    /// dt likewise never rewinds the clock.
+    /// dt likewise never rewinds the clock. A non-finite duration field
+    /// is healed to the default.
     pub fn update(&mut self, dt: f32) {
         if self.state != AnimationState::Running {
             return;
@@ -119,6 +134,7 @@ impl<T: Interpolate> Animation<T> {
         if !dt.is_finite() || dt < 0.0 {
             return;
         }
+        self.duration = self.sane_duration();
 
         self.elapsed += dt;
         if self.elapsed >= self.duration {
@@ -129,10 +145,11 @@ impl<T: Interpolate> Animation<T> {
 
     /// Get the current value of the animation
     pub fn value(&self) -> T {
-        let t = if self.duration <= 0.0 {
+        let duration = self.sane_duration();
+        let t = if duration <= 0.0 {
             1.0
         } else {
-            (self.elapsed / self.duration).clamp(0.0, 1.0)
+            (self.elapsed / duration).clamp(0.0, 1.0)
         };
 
         let eased_t = self.easing.apply(t);
@@ -141,10 +158,11 @@ impl<T: Interpolate> Animation<T> {
 
     /// Get the normalized progress (0.0 to 1.0)
     pub fn progress(&self) -> f32 {
-        if self.duration <= 0.0 {
+        let duration = self.sane_duration();
+        if duration <= 0.0 {
             1.0
         } else {
-            (self.elapsed / self.duration).clamp(0.0, 1.0)
+            (self.elapsed / duration).clamp(0.0, 1.0)
         }
     }
 
@@ -213,6 +231,19 @@ const NEAR_CRITICAL: f32 = 1.0e-3;
 /// invisible except that it bounds the oscillation argument (rate * dt
 /// stays below ~3.6e6) within f64 range-reduction precision.
 const MAX_DT: f32 = 3600.0;
+/// Default timed-animation duration — also the fallback for a non-finite
+/// `duration` field.
+const DEFAULT_DURATION: f32 = 0.3;
+
+/// A timed animation's duration must be finite; zero and negative stay
+/// legal (they mean "already complete").
+const fn sanitize_duration(raw: f32) -> f32 {
+    if raw.is_finite() {
+        raw
+    } else {
+        DEFAULT_DURATION
+    }
+}
 
 /// Spring parameters share the width-knob boundary policy (finite
 /// positive passes, garbage falls back to the default) and are
@@ -232,14 +263,11 @@ const fn sanitize_stiffness(raw: f32) -> f32 {
 /// oscillator); anything else falls back to the default, and sane values
 /// are capped.
 const fn sanitize_damping(raw: f32) -> f32 {
-    if raw.is_finite() && raw >= 0.0 {
-        if raw > MAX_DAMPING {
-            MAX_DAMPING
-        } else {
-            raw
-        }
+    let raw = crate::sanitize::finite_at_least_or(raw, 0.0, DEFAULT_DAMPING);
+    if raw > MAX_DAMPING {
+        MAX_DAMPING
     } else {
-        DEFAULT_DAMPING
+        raw
     }
 }
 
@@ -280,21 +308,26 @@ impl SpringAnimation {
     /// unconditionally stable for any `dt` and any sanitized parameters:
     /// no sub-stepping and no stability bound that new parameters could
     /// silently outgrow. One big step lands on the same trajectory as
-    /// many small ones, and every decay factor is at most 1, so no
-    /// intermediate grows beyond the state itself.
+    /// many small ones, and every decay factor is at most 1, so
+    /// intermediates stay proportional to the state and the capped
+    /// parameters instead of compounding exponentially.
     ///
-    /// Guards. A non-finite or non-positive `dt` advances nothing. A
-    /// step whose decay is visually zero (an `alpha*dt` of 80 or more)
-    /// snaps straight to the target. `dt` is capped at an hour so the
-    /// oscillation argument stays within range-reduction precision. And
-    /// non-finite state — the fields are public, and callers derive
-    /// targets from unmeasured rects — is healed by snapping to the
-    /// target. Parameters are sanitized by [`SpringAnimation::params`]
-    /// and, the fields being public, re-sanitized here.
+    /// Guards. A non-finite or non-positive `dt` is a true no-op — no
+    /// state changes at all. A step whose decay is visually zero (an
+    /// `alpha*dt` of 80 or more) snaps straight to the target. `dt` is
+    /// capped at an hour so the oscillation argument stays within
+    /// range-reduction precision. And non-finite state — the fields are
+    /// public, and callers derive targets from unmeasured rects — is
+    /// healed by snapping to the target. Parameters are sanitized by
+    /// [`SpringAnimation::params`] and, the fields being public,
+    /// re-sanitized here.
     pub fn update(&mut self, dt: f32) {
-        // Heal poisoned state before anything else: a NaN target adopts
-        // the current position, then value/velocity reset onto it, so
-        // one garbage step can never pin is_settled at false forever.
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
+        // Heal poisoned state: a NaN target adopts the current position,
+        // then value/velocity reset onto it, so one garbage step can
+        // never pin is_settled at false forever.
         if !self.target.is_finite() {
             self.target = if self.value.is_finite() {
                 self.value
@@ -305,9 +338,6 @@ impl SpringAnimation {
         if !self.value.is_finite() || !self.velocity.is_finite() {
             self.value = self.target;
             self.velocity = 0.0;
-            return;
-        }
-        if !dt.is_finite() || dt <= 0.0 {
             return;
         }
         let dt = dt.min(MAX_DT);
@@ -749,6 +779,19 @@ mod spring_state_tests {
         assert_eq!(spring.target, 1.0);
         assert_eq!(spring.velocity, 0.0);
     }
+
+    /// A garbage dt is a true no-op: even a poisoned target is left for a
+    /// real frame to heal (the doc promises no state change at all).
+    #[test]
+    fn garbage_dt_is_a_true_no_op() {
+        let mut spring = SpringAnimation::new(0.0, 1.0);
+        spring.target = f32::NAN;
+        spring.update(f32::NAN);
+        assert!(spring.target.is_nan(), "untouched by the garbage dt");
+        spring.update(1.0 / 60.0);
+        assert_eq!(spring.target, 0.0);
+        assert!(spring.is_settled(0.01, 0.01));
+    }
 }
 
 #[cfg(test)]
@@ -768,5 +811,32 @@ mod timed_animation_dt_tests {
         anim.update(0.15);
         assert!(anim.is_complete());
         assert!((anim.value() - 1.0).abs() < 1.0e-6);
+    }
+
+    /// A non-finite duration (a pub field, fed from config) must not make
+    /// `value()` NaN forever or prevent completion — the constructor
+    /// sanitizes it and `update` heals a poisoned field.
+    #[test]
+    fn nan_duration_does_not_poison() {
+        let mut anim = Animation::new(0.0_f32, 1.0, f32::NAN);
+        assert_eq!(anim.duration, 0.3);
+        anim.start();
+        assert!(anim.value().is_finite());
+        for _ in 0..30 {
+            anim.update(1.0 / 60.0);
+        }
+        assert!(anim.is_complete());
+        assert!((anim.value() - 1.0).abs() < 1.0e-6);
+
+        // A poisoned field keeps value() sane even before the next update
+        // heals it; the garbage dt itself must still be a no-op.
+        anim.duration = f32::INFINITY;
+        anim.reset();
+        anim.start();
+        anim.update(f32::NAN);
+        assert_eq!(anim.duration, f32::INFINITY);
+        assert!(anim.value().is_finite());
+        anim.update(1.0 / 60.0);
+        assert_eq!(anim.duration, 0.3);
     }
 }
