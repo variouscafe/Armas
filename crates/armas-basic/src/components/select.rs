@@ -677,7 +677,8 @@ impl Select {
     }
 
     fn show_disabled_option(&self, ui: &mut Ui, option: &SelectOption, theme: &Theme, width: f32) {
-        // Same two-line sizing as enabled rows so mixed lists stay even.
+        // Same two-line sizing and layout as enabled rows (via the
+        // shared painter), so mixed lists stay even — only dimmed.
         let base_height = self.item_height();
         let height = if option.description.is_some() {
             base_height + (ITEM_HEIGHT_WITH_DESC - ITEM_HEIGHT)
@@ -690,49 +691,8 @@ impl Select {
             return;
         }
 
-        let content_rect = rect.shrink2(vec2(PADDING, 0.0));
         let color = theme.muted_foreground().linear_multiply(0.5);
-        let mut label_x = 0.0;
-
-        let font_size = self.item_font_size();
-        if let Some(icon) = &option.icon {
-            ui.painter().text(
-                content_rect.left_top() + vec2(0.0, 6.0),
-                egui::Align2::LEFT_TOP,
-                icon,
-                egui::FontId::proportional(font_size),
-                color,
-            );
-            label_x = ICON_WIDTH;
-        }
-
-        // Label and description — the same two-line layout as enabled
-        // rows, dimmed; a description is never silently dropped.
-        if let Some(description) = &option.description {
-            let label_pos = content_rect.left_top() + vec2(label_x, 6.0);
-            ui.painter().text(
-                label_pos,
-                egui::Align2::LEFT_TOP,
-                &option.label,
-                egui::FontId::proportional(font_size),
-                color,
-            );
-            ui.painter().text(
-                label_pos + vec2(0.0, font_size + 4.0),
-                egui::Align2::LEFT_TOP,
-                description,
-                egui::FontId::proportional((font_size - 2.0).max(8.0)),
-                color,
-            );
-        } else {
-            ui.painter().text(
-                content_rect.left_center() + vec2(label_x, 0.0),
-                egui::Align2::LEFT_CENTER,
-                &option.label,
-                egui::FontId::proportional(font_size),
-                color,
-            );
-        }
+        self.paint_option_content(ui.painter(), rect, option, color, color);
     }
 
     fn show_option(
@@ -771,7 +731,13 @@ impl Select {
         } else {
             theme.popover_foreground()
         };
-        self.paint_option_content(ui.painter(), rect, option, text_color, theme);
+        self.paint_option_content(
+            ui.painter(),
+            rect,
+            option,
+            text_color,
+            theme.muted_foreground(),
+        );
 
         // Update highlight on hover
         if response.hovered() {
@@ -791,7 +757,7 @@ impl Select {
         rect: Rect,
         option: &SelectOption,
         text_color: Color32,
-        theme: &Theme,
+        desc_color: Color32,
     ) {
         let font_size = self.item_font_size();
         let content_rect = rect.shrink2(vec2(PADDING, 0.0));
@@ -826,7 +792,7 @@ impl Select {
                 egui::Align2::LEFT_TOP,
                 description,
                 egui::FontId::proportional((font_size - 2.0).max(8.0)),
-                theme.muted_foreground(),
+                desc_color,
             );
         } else {
             painter.text(

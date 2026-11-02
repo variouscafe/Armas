@@ -2,6 +2,7 @@
 //!
 //! A command palette for search and quick actions. Styled to match shadcn/ui command.
 
+use super::sanitize_height;
 use super::sanitize_width;
 use crate::animation::{Animation, EasingFunction};
 use crate::components::Kbd;
@@ -213,7 +214,7 @@ impl Command {
     /// Set the panel max height
     #[must_use]
     pub const fn max_height(mut self, max_height: f32) -> Self {
-        self.max_height = max_height;
+        self.max_height = sanitize_height(max_height, self.max_height);
         self
     }
 
@@ -697,5 +698,18 @@ impl Command {
 impl Default for Command {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod height_knob_tests {
+    use super::*;
+
+    /// The max-height knob keeps its current value on garbage.
+    #[test]
+    fn garbage_max_height_keeps_the_default() {
+        let default = Command::new().max_height;
+        assert_eq!(Command::new().max_height(f32::NAN).max_height, default);
+        assert_eq!(Command::new().max_height(480.0).max_height, 480.0);
     }
 }

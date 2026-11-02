@@ -101,7 +101,7 @@ impl MenubarBuilder {
         content(&mut builder);
         self.entries.push(MenuEntry {
             trigger: MenuTrigger::Custom {
-                width: trigger_width,
+                width: super::sanitize_width(trigger_width, super::DEFAULT_WIDTH),
                 render: Box::new(trigger),
             },
             items: builder.into_items(),

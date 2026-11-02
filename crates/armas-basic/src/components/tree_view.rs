@@ -3,6 +3,7 @@
 //! A hierarchical tree view for displaying nested items like files/folders.
 
 use super::sanitize_width;
+use super::{sanitize_height, sanitize_padding};
 use crate::ext::ArmasContextExt;
 use egui::{Pos2, Response, Sense, Ui, Vec2};
 use serde::{Deserialize, Serialize};
@@ -167,15 +168,16 @@ impl TreeView {
 
     /// Set height (0 = fill available)
     #[must_use]
+    /// Zero stays legal: it is the fill-available sentinel.
     pub const fn height(mut self, height: f32) -> Self {
-        self.height = height;
+        self.height = sanitize_padding(height, self.height);
         self
     }
 
     /// Set the height of each item row
     #[must_use]
     pub const fn item_height(mut self, height: f32) -> Self {
-        self.item_height = height;
+        self.item_height = sanitize_height(height, self.item_height);
         self
     }
 
@@ -438,3 +440,25 @@ pub type Browser = TreeView;
 pub type BrowserItem = TreeItem;
 #[doc(hidden)]
 pub type BrowserResponse = TreeViewResponse;
+
+#[cfg(test)]
+mod height_knob_tests {
+    use super::*;
+
+    /// The height knob keeps the zero-fill sentinel and rejects
+    /// garbage; the item height keeps its current value.
+    #[test]
+    fn height_knobs_are_sanitized() {
+        let (default_height, default_item) = {
+            let base = TreeView::new();
+            (base.height, base.item_height)
+        };
+        assert_eq!(TreeView::new().height(f32::NAN).height, default_height);
+        assert_eq!(TreeView::new().height(0.0).height, 0.0);
+        assert_eq!(
+            TreeView::new().item_height(f32::NAN).item_height,
+            default_item
+        );
+        assert_eq!(TreeView::new().item_height(32.0).item_height, 32.0);
+    }
+}

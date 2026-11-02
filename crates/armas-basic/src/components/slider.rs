@@ -7,7 +7,9 @@
 //! - Optional velocity-based dragging (hold Ctrl/Cmd)
 //! - Labels and value display
 
-use super::{sanitize_height, sanitize_width};
+use super::{
+    sanitize_bounds, sanitize_height, sanitize_opt_size, sanitize_opt_value, sanitize_width,
+};
 use crate::animation::{DragMode, VelocityDrag, VelocityDragConfig};
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, Rect, Sense, Stroke, Ui};
@@ -70,6 +72,7 @@ impl Slider {
     /// Create a new slider
     #[must_use]
     pub const fn new(min: f32, max: f32) -> Self {
+        let (min, max) = sanitize_bounds(min, max);
         Self {
             id: None,
             min,
@@ -131,14 +134,14 @@ impl Slider {
     /// Set a step value for snapping
     #[must_use]
     pub const fn step(mut self, step: f32) -> Self {
-        self.step = Some(step);
+        self.step = sanitize_opt_size(step);
         self
     }
 
     /// Set a default value for double-click reset
     #[must_use]
     pub const fn default_value(mut self, value: f32) -> Self {
-        self.default_value = Some(value);
+        self.default_value = sanitize_opt_value(value);
         self
     }
 
@@ -397,5 +400,29 @@ mod height_knob_tests {
         let default = Slider::new(0.0, 1.0).height;
         assert_eq!(Slider::new(0.0, 1.0).height(f32::NAN).height, default);
         assert_eq!(Slider::new(0.0, 1.0).height(28.0).height, 28.0);
+    }
+}
+
+#[cfg(test)]
+mod value_knob_tests {
+    use super::*;
+
+    /// The step counts garbage as unset; the default accepts any finite
+    /// value; the constructor swaps inverted bounds and heals garbage.
+    #[test]
+    fn knobs_and_bounds_are_sanitized() {
+        assert_eq!(Slider::new(0.0, 1.0).step(f32::NAN).step, None);
+        assert_eq!(
+            Slider::new(0.0, 1.0).default_value(f32::NAN).default_value,
+            None
+        );
+        assert_eq!(
+            Slider::new(0.0, 1.0).default_value(-2.0).default_value,
+            Some(-2.0)
+        );
+        let s = Slider::new(8.0, 2.0);
+        assert_eq!((s.min, s.max), (2.0, 8.0));
+        let s = Slider::new(f32::NAN, f32::INFINITY);
+        assert_eq!((s.min, s.max), (0.0, 1.0));
     }
 }

@@ -2,6 +2,7 @@
 //!
 //! Simple horizontal or vertical divider line.
 
+use super::sanitize_opt_size;
 use crate::ext::ArmasContextExt;
 use egui::{Response, Ui, Vec2};
 
@@ -63,7 +64,7 @@ impl Separator {
     /// Set custom length (width for horizontal, height for vertical)
     #[must_use]
     pub const fn length(mut self, length: f32) -> Self {
-        self.length = Some(length);
+        self.length = sanitize_opt_size(length);
         self
     }
 
@@ -96,5 +97,17 @@ impl Separator {
 impl Default for Separator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod size_knob_tests {
+    use super::*;
+
+    /// The length knob counts garbage as unset.
+    #[test]
+    fn garbage_length_counts_as_unset() {
+        assert!(Separator::new().length(f32::NAN).length.is_none());
+        assert_eq!(Separator::new().length(120.0).length, Some(120.0));
     }
 }

@@ -9,7 +9,7 @@
 //! - Labels and descriptions
 //! - Disabled state
 
-use super::{sanitize_height, sanitize_opt_width};
+use super::{sanitize_height, sanitize_opt_value, sanitize_opt_width, sanitize_size};
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, CornerRadius, Response, Sense, Stroke, Ui, Vec2};
 
@@ -81,21 +81,21 @@ impl NumberField {
     /// Set minimum value
     #[must_use]
     pub const fn min(mut self, min: f32) -> Self {
-        self.min = Some(min);
+        self.min = sanitize_opt_value(min);
         self
     }
 
     /// Set maximum value
     #[must_use]
     pub const fn max(mut self, max: f32) -> Self {
-        self.max = Some(max);
+        self.max = sanitize_opt_value(max);
         self
     }
 
     /// Set step increment
     #[must_use]
     pub const fn step(mut self, step: f32) -> Self {
-        self.step = step;
+        self.step = sanitize_size(step, self.step);
         self
     }
 
@@ -146,7 +146,13 @@ impl NumberField {
     fn clamp_value(&self, value: f32) -> f32 {
         let min = self.min.unwrap_or(f32::NEG_INFINITY);
         let max = self.max.unwrap_or(f32::INFINITY);
-        value.clamp(min, max)
+        // `f32::clamp` panics on NaN bounds or min > max; the knobs are
+        // sanitized at the builder, but pub-set bounds get a guard too.
+        if min <= max {
+            value.clamp(min, max)
+        } else {
+            value
+        }
     }
 
     /// Show the number field
@@ -539,5 +545,30 @@ mod height_knob_tests {
         let default = NumberField::new().height;
         assert_eq!(NumberField::new().height(f32::NAN).height, default);
         assert_eq!(NumberField::new().height(28.0).height, 28.0);
+    }
+}
+
+#[cfg(test)]
+mod value_knob_tests {
+    use super::*;
+
+    /// Bounds accept any finite value (negatives are legal); garbage
+    /// counts as unset, step keeps its default, and an inverted or NaN
+    /// bound pair can never reach the panicking `f32::clamp`.
+    #[test]
+    fn bounds_and_step_are_sanitized() {
+        assert_eq!(NumberField::new().min(f32::NAN).min, None);
+        assert_eq!(NumberField::new().min(-5.0).min, Some(-5.0));
+        assert_eq!(NumberField::new().max(f32::INFINITY).max, None);
+        let default_step = NumberField::new().step;
+        assert_eq!(NumberField::new().step(f32::NAN).step, default_step);
+        assert_eq!(NumberField::new().step(2.5).step, 2.5);
+
+        // clamp_value guards inverted / poisoned bounds instead of
+        // panicking (`f32::clamp` asserts min <= max and no NaNs).
+        let field = NumberField::new().min(5.0).max(1.0);
+        assert_eq!(field.clamp_value(3.0), 3.0);
+        let field = NumberField::new().min(f32::NAN);
+        assert_eq!(field.clamp_value(3.0), 3.0);
     }
 }

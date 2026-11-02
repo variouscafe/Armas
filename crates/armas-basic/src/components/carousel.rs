@@ -15,6 +15,7 @@
 //! ```
 
 use super::sanitize_height;
+use super::{sanitize_padding, sanitize_size};
 use crate::animation::SpringAnimation;
 use egui::{vec2, Id, Pos2, Rect, Sense, Stroke, Ui};
 
@@ -87,14 +88,14 @@ impl Carousel {
     /// Set the fraction of container width each item occupies (e.g. 0.33 = 3 visible items).
     #[must_use]
     pub const fn item_basis(mut self, basis: f32) -> Self {
-        self.item_basis = basis;
+        self.item_basis = sanitize_size(basis, self.item_basis);
         self
     }
 
     /// Set the gap between items in pixels.
     #[must_use]
     pub const fn gap(mut self, gap: f32) -> Self {
-        self.gap = gap;
+        self.gap = sanitize_padding(gap, self.gap);
         self
     }
 
@@ -452,5 +453,26 @@ mod height_knob_tests {
         let default = Carousel::new("c").height;
         assert_eq!(Carousel::new("c").height(f32::NAN).height, default);
         assert_eq!(Carousel::new("c").height(28.0).height, 28.0);
+    }
+}
+
+#[cfg(test)]
+mod basis_gap_knob_tests {
+    use super::*;
+
+    /// The basis keeps its current value on garbage; the gap admits
+    /// zero and rejects garbage.
+    #[test]
+    fn basis_and_gap_knobs_are_sanitized() {
+        let (default_basis, default_gap) = {
+            let base = Carousel::new("c");
+            (base.item_basis, base.gap)
+        };
+        assert_eq!(
+            Carousel::new("c").item_basis(f32::NAN).item_basis,
+            default_basis
+        );
+        assert_eq!(Carousel::new("c").gap(f32::NAN).gap, default_gap);
+        assert_eq!(Carousel::new("c").gap(0.0).gap, 0.0);
     }
 }

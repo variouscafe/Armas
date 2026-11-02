@@ -9,7 +9,8 @@
 
 use super::content::ContentContext;
 use super::{
-    sanitize_opt_height, sanitize_opt_padding, sanitize_opt_size, sanitize_opt_width, sanitize_size,
+    sanitize_opt_height, sanitize_opt_padding, sanitize_opt_radius, sanitize_opt_size,
+    sanitize_opt_width, sanitize_size,
 };
 use crate::ext::ArmasContextExt;
 use crate::Theme;
@@ -145,7 +146,7 @@ impl Badge {
     /// Set corner radius
     #[must_use]
     pub const fn corner_radius(mut self, radius: f32) -> Self {
-        self.custom_corner_radius = Some(radius);
+        self.custom_corner_radius = sanitize_opt_radius(radius);
         self
     }
 
@@ -613,5 +614,28 @@ mod height_knob_tests {
         // value on garbage.
         assert_eq!(NotificationBadge::new(3).size(f32::NAN).size, 18.0);
         assert_eq!(NotificationBadge::new(3).size(9.0).size, 9.0);
+    }
+}
+
+#[cfg(test)]
+mod radius_knob_tests {
+    use super::*;
+
+    /// The radius knob counts garbage as unset and caps at the u8
+    /// conversion's saturation point.
+    #[test]
+    fn garbage_radius_counts_as_unset() {
+        assert!(Badge::new("b")
+            .corner_radius(f32::NAN)
+            .custom_corner_radius
+            .is_none());
+        assert!(Badge::new("b")
+            .corner_radius(-2.0)
+            .custom_corner_radius
+            .is_none());
+        assert_eq!(
+            Badge::new("b").corner_radius(999.0).custom_corner_radius,
+            Some(255.0)
+        );
     }
 }

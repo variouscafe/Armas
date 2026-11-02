@@ -4,6 +4,7 @@
 //! Placeholder — implementation follows.
 
 use super::sanitize_opt_width;
+use super::sanitize_padding;
 use crate::components::popover::{Popover, PopoverPosition, PopoverStyle};
 use egui::{Id, Ui};
 
@@ -53,14 +54,14 @@ impl HoverCard {
     /// Set the delay before the card opens on hover (seconds).
     #[must_use]
     pub const fn open_delay(mut self, delay: f32) -> Self {
-        self.open_delay = delay;
+        self.open_delay = sanitize_padding(delay, self.open_delay);
         self
     }
 
     /// Set the delay before the card closes after hover leaves (seconds).
     #[must_use]
     pub const fn close_delay(mut self, delay: f32) -> Self {
-        self.close_delay = delay;
+        self.close_delay = sanitize_padding(delay, self.close_delay);
         self
     }
 
@@ -170,5 +171,29 @@ impl HoverCard {
             response: popover_response.response,
             is_open,
         }
+    }
+}
+
+#[cfg(test)]
+mod delay_knob_tests {
+    use super::*;
+
+    /// Delays admit zero (no delay) and keep their current values on
+    /// garbage.
+    #[test]
+    fn delay_knobs_are_sanitized() {
+        let (default_open, default_close) = {
+            let base = HoverCard::new("h");
+            (base.open_delay, base.close_delay)
+        };
+        assert_eq!(
+            HoverCard::new("h").open_delay(f32::NAN).open_delay,
+            default_open
+        );
+        assert_eq!(HoverCard::new("h").open_delay(0.0).open_delay, 0.0);
+        assert_eq!(
+            HoverCard::new("h").close_delay(f32::INFINITY).close_delay,
+            default_close
+        );
     }
 }

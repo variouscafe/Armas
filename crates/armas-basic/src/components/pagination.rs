@@ -15,6 +15,7 @@
 //! # }
 //! ```
 
+use super::sanitize_size;
 use crate::ext::ArmasContextExt;
 use crate::{Button, ButtonVariant};
 use egui::{vec2, Sense, Ui};
@@ -102,7 +103,7 @@ impl Pagination {
     /// Set the size of page number and ellipsis buttons
     #[must_use]
     pub const fn button_size(mut self, button_size: f32) -> Self {
-        self.button_size = button_size;
+        self.button_size = sanitize_size(button_size, self.button_size);
         self
     }
 
@@ -382,4 +383,20 @@ fn calculate_visible_pages(current: usize, total: usize, siblings: usize) -> Vec
     }
 
     pages
+}
+
+#[cfg(test)]
+mod size_knob_tests {
+    use super::*;
+
+    /// The button-size knob keeps its current value on garbage.
+    #[test]
+    fn garbage_button_size_keeps_the_default() {
+        let default = Pagination::new(1, 5).button_size;
+        assert_eq!(
+            Pagination::new(1, 5).button_size(f32::NAN).button_size,
+            default
+        );
+        assert_eq!(Pagination::new(1, 5).button_size(36.0).button_size, 36.0);
+    }
 }

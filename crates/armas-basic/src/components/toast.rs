@@ -260,7 +260,9 @@ impl ToastManager {
     /// While external progress is set the toast will not auto-dismiss.
     pub fn set_progress(&mut self, id: ToastId, progress: f32) {
         if let Some(toast) = self.toasts.iter_mut().find(|t| t.id == id.0) {
-            toast.external_progress = Some(progress.clamp(0.0, 1.0));
+            // sanitize first: a bare clamp passes NaN straight through.
+            toast.external_progress =
+                Some(crate::sanitize::finite_or(progress, 0.0).clamp(0.0, 1.0));
         }
     }
 
@@ -596,7 +598,8 @@ impl ToastBuilder<'_> {
     #[must_use]
     pub const fn progress(mut self, progress: f32) -> Self {
         if let Some(toast) = &mut self.toast {
-            toast.external_progress = Some(progress);
+            toast.external_progress =
+                Some(crate::sanitize::finite_or(progress, 0.0).clamp(0.0, 1.0));
         }
         self
     }

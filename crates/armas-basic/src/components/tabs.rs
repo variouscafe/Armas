@@ -4,7 +4,7 @@
 //! Features a muted background container with animated active indicator.
 
 use super::content::ContentContext;
-use super::{sanitize_height, sanitize_padding, sanitize_size, sanitize_width};
+use super::{sanitize_height, sanitize_padding, sanitize_radius, sanitize_size, sanitize_width};
 use crate::ext::ArmasContextExt;
 use egui::{Pos2, Ui, Vec2};
 
@@ -130,14 +130,14 @@ impl Tabs {
     /// Set outer container corner radius
     #[must_use]
     pub const fn list_radius(mut self, radius: f32) -> Self {
-        self.list_radius = radius;
+        self.list_radius = sanitize_radius(radius, self.list_radius);
         self
     }
 
     /// Set active indicator corner radius
     #[must_use]
     pub const fn trigger_radius(mut self, radius: f32) -> Self {
-        self.trigger_radius = radius;
+        self.trigger_radius = sanitize_radius(radius, self.trigger_radius);
         self
     }
 
@@ -496,5 +496,30 @@ mod padding_knob_tests {
         );
         assert_eq!(Tabs::new(vec!["a"]).gap(-1.0).gap, default_gap);
         assert_eq!(Tabs::new(vec!["a"]).gap(0.0).gap, 0.0);
+    }
+}
+
+#[cfg(test)]
+mod radius_knob_tests {
+    use super::*;
+
+    /// Radius knobs admit zero (square) and cap at the u8 saturation
+    /// point; garbage keeps the current value.
+    #[test]
+    fn radius_knobs_are_sanitized() {
+        let (default_list, default_trigger) = {
+            let base = Tabs::new(vec!["a"]);
+            (base.list_radius, base.trigger_radius)
+        };
+        assert_eq!(
+            Tabs::new(vec!["a"]).list_radius(f32::NAN).list_radius,
+            default_list
+        );
+        assert_eq!(Tabs::new(vec!["a"]).list_radius(0.0).list_radius, 0.0);
+        assert_eq!(Tabs::new(vec!["a"]).list_radius(999.0).list_radius, 255.0);
+        assert_eq!(
+            Tabs::new(vec!["a"]).trigger_radius(f32::NAN).trigger_radius,
+            default_trigger
+        );
     }
 }

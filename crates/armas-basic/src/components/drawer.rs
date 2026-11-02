@@ -29,6 +29,7 @@
 //! # }
 //! ```
 
+use super::sanitize_opt_height;
 use crate::Theme;
 use egui::{vec2, Color32, Key, Pos2, Rect, Sense, Stroke, Ui};
 
@@ -151,7 +152,7 @@ impl Drawer {
     /// Set a fixed height for the drawer
     #[must_use]
     pub const fn height(mut self, height: f32) -> Self {
-        self.height = Some(height);
+        self.height = sanitize_opt_height(height);
         self
     }
 
@@ -388,5 +389,17 @@ impl DrawerResponse {
     #[must_use]
     pub const fn closed(&self) -> bool {
         self.closed
+    }
+}
+
+#[cfg(test)]
+mod height_knob_tests {
+    use super::*;
+
+    /// The height knob counts garbage as unset.
+    #[test]
+    fn garbage_height_counts_as_unset() {
+        assert!(Drawer::new("d").height(f32::NAN).height.is_none());
+        assert_eq!(Drawer::new("d").height(600.0).height, Some(600.0));
     }
 }

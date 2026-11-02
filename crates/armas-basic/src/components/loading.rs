@@ -6,6 +6,7 @@
 //! - Skeleton: Content placeholder with shimmer
 
 use super::sanitize_size;
+use super::{sanitize_height, sanitize_opt_radius, sanitize_padding, sanitize_width};
 use crate::ext::ArmasContextExt;
 use egui::{Color32, Pos2, Rect, Response, Ui, Vec2};
 use std::f32::consts::PI;
@@ -86,7 +87,7 @@ impl Spinner {
     /// Set the rotation speed (in radians per second)
     #[must_use]
     pub const fn speed(mut self, speed: f32) -> Self {
-        self.speed = speed;
+        self.speed = sanitize_padding(speed, self.speed);
         self
     }
 
@@ -157,6 +158,10 @@ impl Spinner {
 
 /// Skeleton loader for placeholder content
 ///
+/// Fallbacks for a garbage-sized skeleton (unmeasured container).
+const DEFAULT_SKELETON_WIDTH: f32 = 200.0;
+const DEFAULT_SKELETON_HEIGHT: f32 = 20.0;
+
 /// A shimmer effect that animates across a rectangular area,
 /// useful for indicating loading content.
 ///
@@ -195,8 +200,8 @@ impl Skeleton {
     #[must_use]
     pub const fn new(width: f32, height: f32) -> Self {
         Self {
-            width,
-            height,
+            width: sanitize_width(width, DEFAULT_SKELETON_WIDTH),
+            height: sanitize_height(height, DEFAULT_SKELETON_HEIGHT),
             base_color: None,      // Will use theme.muted()
             highlight_color: None, // Will use theme.card()
             shimmer_pos: 0.0,
@@ -223,21 +228,22 @@ impl Skeleton {
     /// Set the animation speed
     #[must_use]
     pub const fn speed(mut self, speed: f32) -> Self {
-        self.speed = speed;
+        self.speed = sanitize_padding(speed, self.speed);
         self
     }
 
     /// Set the corner radius (overrides theme)
     #[must_use]
     pub const fn corner_radius(mut self, radius: f32) -> Self {
-        self.corner_radius = Some(radius);
+        self.corner_radius = sanitize_opt_radius(radius);
         self
     }
 
     /// Set the shimmer width (as a fraction of total width)
     #[must_use]
     pub const fn shimmer_width(mut self, width: f32) -> Self {
-        self.shimmer_width = width.clamp(0.1, 1.0);
+        // sanitize first: a bare clamp passes NaN straight through.
+        self.shimmer_width = crate::sanitize::finite_or(width, 0.3).clamp(0.1, 1.0);
         self
     }
 

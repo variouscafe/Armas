@@ -156,8 +156,9 @@ pub(crate) const fn sanitize_opt_size(raw: f32) -> Option<f32> {
     }
 }
 
-/// Padding and spacing knobs, where zero is legal (flush / no gap): a
-/// finite non-negative value passes, garbage falls back to `default`.
+/// Padding and spacing knobs, where zero is legal (flush / no gap / no
+/// delay — also sentinel-zero heights): a finite non-negative value
+/// passes, garbage falls back to `default`.
 pub(crate) const fn sanitize_padding(raw: f32, default: f32) -> f32 {
     crate::sanitize::finite_at_least_or(raw, 0.0, default)
 }
@@ -170,6 +171,45 @@ pub(crate) const fn sanitize_opt_padding(raw: f32) -> Option<f32> {
         Some(sane)
     } else {
         None
+    }
+}
+
+/// Corner-radius knobs: finite non-negative, capped where the u8
+/// `CornerRadius` conversion saturates anyway.
+pub(crate) const fn sanitize_radius(raw: f32, default: f32) -> f32 {
+    crate::sanitize::finite_at_least_or(raw, 0.0, default).min(255.0)
+}
+
+/// [`sanitize_radius`] for explicit-radius knobs: garbage counts as
+/// unset.
+pub(crate) const fn sanitize_opt_radius(raw: f32) -> Option<f32> {
+    let sane = crate::sanitize::finite_at_least_or(raw, 0.0, -1.0);
+    if sane >= 0.0 {
+        Some(sane.min(255.0))
+    } else {
+        None
+    }
+}
+
+/// Value-domain knobs (slider bounds and defaults, number-field bounds):
+/// any finite value passes; garbage counts as unset.
+pub(crate) const fn sanitize_opt_value(raw: f32) -> Option<f32> {
+    if raw.is_finite() {
+        Some(raw)
+    } else {
+        None
+    }
+}
+
+/// Domain-bound pairs (slider ranges): garbage falls back per side, and
+/// an inverted pair is swapped so `min <= max` always holds.
+pub(crate) const fn sanitize_bounds(min: f32, max: f32) -> (f32, f32) {
+    let min = crate::sanitize::finite_or(min, 0.0);
+    let max = crate::sanitize::finite_or(max, 1.0);
+    if min <= max {
+        (min, max)
+    } else {
+        (max, min)
     }
 }
 
@@ -215,5 +255,102 @@ mod sanitize_tests {
             assert_eq!(sanitize_padding(garbage, 8.0), 8.0);
             assert_eq!(sanitize_opt_padding(garbage), None);
         }
+    }
+
+    /// Radii admit zero (square) and cap where the u8 conversion
+    /// saturates anyway; value-domain knobs accept any finite value.
+    #[test]
+    fn radius_and_value_policies() {
+        assert_eq!(sanitize_radius(0.0, 6.0), 0.0);
+        assert_eq!(sanitize_radius(8.0, 6.0), 8.0);
+        assert_eq!(sanitize_radius(300.0, 6.0), 255.0);
+        assert_eq!(sanitize_opt_radius(12.0), Some(12.0));
+        assert_eq!(sanitize_opt_radius(f32::NAN), None);
+        assert_eq!(sanitize_opt_value(-5.0), Some(-5.0));
+        assert_eq!(sanitize_opt_value(f32::INFINITY), None);
+        assert_eq!(sanitize_bounds(2.0, 8.0), (2.0, 8.0));
+        assert_eq!(sanitize_bounds(8.0, 2.0), (2.0, 8.0));
+        assert_eq!(sanitize_bounds(f32::NAN, f32::NAN), (0.0, 1.0));
+    }
+}
+
+/// The knob policy is only as good as its coverage: every builder in
+/// this module that takes a raw f32 must route it through a sanitize
+/// wrapper (or sit on the explicit allowlist below). This test scans
+/// the component sources so a new raw knob cannot slip in silently.
+#[cfg(test)]
+mod knob_inventory_tests {
+    /// Builders deliberately raw, with reasons:
+    /// - `font_size` (input.rs): a no-op backwards-compat alias that
+    ///   ignores its argument.
+    /// - `set_widths` (sidebar.rs): delegates to the sanitizing
+    ///   per-field setters.
+    const ALLOWED_RAW: &[&str] = &["font_size", "set_widths"];
+
+    #[test]
+    fn every_f32_builder_sanitizes_or_is_allowlisted() {
+        let dir = format!("{}/src/components", env!("CARGO_MANIFEST_DIR"));
+        let mut offenders = Vec::new();
+        let mut builders = 0usize;
+
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            let file = path.file_name().unwrap().to_string_lossy().to_string();
+            if !file.to_lowercase().ends_with(".rs") || file == "mod.rs" {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path).unwrap();
+            let mut i = 0usize;
+            loop {
+                let next = [src[i..].find("pub const fn "), src[i..].find("pub fn ")]
+                    .into_iter()
+                    .flatten()
+                    .min();
+                let Some(rel) = next else { break };
+                let fn_start = i + rel;
+                // function name
+                let name_start = fn_start + src[fn_start..].find("fn ").unwrap() + 3;
+                let name_end = name_start + src[name_start..].find('(').unwrap();
+                let name = src[name_start..name_end].to_string();
+                // argument span
+                let args_open = name_end;
+                let args_close = args_open + src[args_open..].find(')').unwrap();
+                let args = &src[args_open..args_close];
+                // body span: from the first '{' after the signature to its match
+                let Some(brace_rel) = src[args_close..].find('{') else {
+                    break;
+                };
+                let body_open = args_close + brace_rel;
+                let mut depth = 1usize;
+                let mut j = body_open + 1;
+                while depth > 0 && j < src.len() {
+                    match src.as_bytes()[j] {
+                        b'{' => depth += 1,
+                        b'}' => depth -= 1,
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                let body = &src[body_open..j];
+                if args.contains(": f32") {
+                    builders += 1;
+                    if !body.contains("sanitize") && !ALLOWED_RAW.contains(&name.as_str()) {
+                        offenders.push(format!("{file}: {name}"));
+                    }
+                }
+                i = j;
+            }
+        }
+
+        assert!(
+            offenders.is_empty(),
+            "raw f32 knobs without boundary sanitization:\n  {}",
+            offenders.join("\n  ")
+        );
+        // The scan itself must stay meaningful.
+        assert!(
+            builders > 80,
+            "only {builders} f32 builders found — did the scan break?"
+        );
     }
 }

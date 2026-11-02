@@ -51,7 +51,7 @@ impl Progress {
     #[must_use]
     pub const fn new(value: f32) -> Self {
         Self {
-            value: value.clamp(0.0, 100.0),
+            value: crate::sanitize::finite_or(value, 0.0).clamp(0.0, 100.0),
             width: None,
             height: PROGRESS_HEIGHT,
         }
@@ -153,7 +153,7 @@ impl CircularProgressBar {
     #[must_use]
     pub const fn new(value: f32) -> Self {
         Self {
-            value: Some(value.clamp(0.0, 100.0)),
+            value: Some(crate::sanitize::finite_or(value, 0.0).clamp(0.0, 100.0)),
             size: CIRCULAR_SIZE,
             stroke_width: CIRCULAR_STROKE,
             show_percentage: false,
@@ -320,5 +320,18 @@ mod size_knob_tests {
             CircularProgressBar::new(0.5).stroke_width(3.0).stroke_width,
             3.0
         );
+    }
+}
+
+#[cfg(test)]
+mod value_knob_tests {
+    use super::*;
+
+    /// A NaN value would sail through a bare clamp into every paint.
+    #[test]
+    fn nan_value_falls_back_to_zero() {
+        assert_eq!(Progress::new(f32::NAN).value, 0.0);
+        assert_eq!(Progress::new(f32::INFINITY).value, 0.0);
+        assert_eq!(Progress::new(60.0).value, 60.0);
     }
 }

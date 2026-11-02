@@ -2,7 +2,9 @@
 //!
 //! Horizontal slider with two thumbs for selecting a range (min/max).
 
-use super::{sanitize_height, sanitize_width};
+use super::{
+    sanitize_bounds, sanitize_height, sanitize_opt_size, sanitize_padding, sanitize_width,
+};
 use crate::ext::ArmasContextExt;
 use egui::{pos2, vec2, Color32, Rect, Response, Sense, Stroke, Ui};
 
@@ -67,6 +69,7 @@ impl RangeSlider {
     /// Create a new range slider
     #[must_use]
     pub const fn new(range_min: f32, range_max: f32) -> Self {
+        let (range_min, range_max) = sanitize_bounds(range_min, range_max);
         Self {
             id: None,
             range_min,
@@ -127,14 +130,14 @@ impl RangeSlider {
     /// Set a step value for snapping
     #[must_use]
     pub const fn step(mut self, step: f32) -> Self {
-        self.step = Some(step);
+        self.step = sanitize_opt_size(step);
         self
     }
 
     /// Set minimum gap between min and max thumbs
     #[must_use]
     pub const fn min_gap(mut self, gap: f32) -> Self {
-        self.min_gap = gap;
+        self.min_gap = sanitize_padding(gap, self.min_gap);
         self
     }
 
@@ -561,5 +564,27 @@ mod height_knob_tests {
         let default = RangeSlider::new(0.0, 1.0).height;
         assert_eq!(RangeSlider::new(0.0, 1.0).height(f32::NAN).height, default);
         assert_eq!(RangeSlider::new(0.0, 1.0).height(28.0).height, 28.0);
+    }
+}
+
+#[cfg(test)]
+mod value_knob_tests {
+    use super::*;
+
+    /// The step counts garbage as unset; the min gap admits zero; the
+    /// constructor swaps inverted bounds and heals garbage ones.
+    #[test]
+    fn knobs_and_bounds_are_sanitized() {
+        assert_eq!(RangeSlider::new(0.0, 1.0).step(f32::NAN).step, None);
+        let default_gap = RangeSlider::new(0.0, 1.0).min_gap;
+        assert_eq!(
+            RangeSlider::new(0.0, 1.0).min_gap(f32::NAN).min_gap,
+            default_gap
+        );
+        assert_eq!(RangeSlider::new(0.0, 1.0).min_gap(0.0).min_gap, 0.0);
+        let s = RangeSlider::new(8.0, 2.0);
+        assert_eq!((s.range_min, s.range_max), (2.0, 8.0));
+        let s = RangeSlider::new(f32::NAN, f32::NAN);
+        assert_eq!((s.range_min, s.range_max), (0.0, 1.0));
     }
 }

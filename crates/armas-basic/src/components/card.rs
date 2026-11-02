@@ -25,7 +25,7 @@
 //! }
 //! ```
 
-use super::{sanitize_opt_height, sanitize_opt_width};
+use super::{sanitize_opt_height, sanitize_opt_padding, sanitize_opt_radius, sanitize_opt_width};
 use crate::ext::ArmasContextExt;
 use egui::{self, Color32, CornerRadius};
 
@@ -149,7 +149,7 @@ impl<'a> Card<'a> {
     /// Set custom inner margin (overrides theme default)
     #[must_use]
     pub const fn inner_margin(mut self, margin: f32) -> Self {
-        self.inner_margin = Some(margin);
+        self.inner_margin = sanitize_opt_padding(margin);
         self
     }
 
@@ -178,14 +178,14 @@ impl<'a> Card<'a> {
     /// Set custom corner radius (overrides theme default)
     #[must_use]
     pub const fn corner_radius(mut self, radius: f32) -> Self {
-        self.corner_radius = Some(radius);
+        self.corner_radius = sanitize_opt_radius(radius);
         self
     }
 
     /// Alias for `corner_radius` for backwards compatibility
     #[must_use]
     pub const fn rounding(mut self, radius: f32) -> Self {
-        self.corner_radius = Some(radius);
+        self.corner_radius = sanitize_opt_radius(radius);
         self
     }
 
@@ -246,7 +246,9 @@ impl<'a> Card<'a> {
 
         // Use asymmetric margin if provided, otherwise uniform margin (using shadcn PADDING)
         let frame_margin = self.margin.unwrap_or_else(|| {
-            let margin_val = self.inner_margin.unwrap_or(PADDING) as i8;
+            // cap where the i8 conversion saturates, so the clamp is
+            // explicit rather than silent
+            let margin_val = self.inner_margin.unwrap_or(PADDING).min(127.0) as i8;
             egui::Margin::same(margin_val)
         });
         let mut content_result = None;
@@ -404,5 +406,21 @@ mod height_knob_tests {
             assert!(Card::new().height(garbage).height.is_none());
         }
         assert_eq!(Card::new().height(120.0).height, Some(120.0));
+    }
+}
+
+#[cfg(test)]
+mod margin_radius_knob_tests {
+    use super::*;
+
+    /// The margin knob counts garbage as unset (zero is flush); the
+    /// radius knobs cap at the u8 saturation point.
+    #[test]
+    fn margin_and_radius_knobs_are_sanitized() {
+        assert!(Card::new().inner_margin(f32::NAN).inner_margin.is_none());
+        assert_eq!(Card::new().inner_margin(0.0).inner_margin, Some(0.0));
+        assert!(Card::new().corner_radius(-1.0).corner_radius.is_none());
+        assert_eq!(Card::new().corner_radius(999.0).corner_radius, Some(255.0));
+        assert_eq!(Card::new().rounding(f32::NAN).corner_radius, None);
     }
 }

@@ -13,6 +13,7 @@
 //! - Separator: bg-border h-px -mx-1 my-1
 //! - Label: px-2 py-1.5 text-sm font-medium
 
+use super::sanitize_height;
 use super::sanitize_width;
 use crate::components::Kbd;
 use crate::icon;
@@ -426,7 +427,7 @@ impl DropdownMenu {
     /// Set the height of each menu item row
     #[must_use]
     pub const fn item_height(mut self, height: f32) -> Self {
-        self.item_height = height;
+        self.item_height = sanitize_height(height, self.item_height);
         self
     }
 
@@ -1316,5 +1317,21 @@ impl DropdownMenuItem {
     pub const fn destructive(mut self) -> Self {
         self.destructive = true;
         self
+    }
+}
+
+#[cfg(test)]
+mod height_knob_tests {
+    use super::*;
+
+    /// The item-height knob keeps its current value on garbage.
+    #[test]
+    fn garbage_item_height_keeps_the_default() {
+        let default = DropdownMenu::new("m").item_height;
+        assert_eq!(
+            DropdownMenu::new("m").item_height(f32::NAN).item_height,
+            default
+        );
+        assert_eq!(DropdownMenu::new("m").item_height(40.0).item_height, 40.0);
     }
 }
